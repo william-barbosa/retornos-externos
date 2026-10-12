@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retornos externos por período, grupo e país</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- SheetJS para exportação real em Excel .xlsx -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- Header Superior -->
+  <header class="app-header">
+    <div class="header-content">
+      <div>
+        <h1 class="app-title">Retornos externos por período, grupo e país</h1>
+        <p class="app-subtitle">Diferenciais de taxas de retorno e fluxos brutos dos ativos e passivos externos (2000–2025)</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Layout Principal -->
+  <div class="app-layout">
+    
+    <!-- Sidebar -->
+    <aside class="app-sidebar">
+      
+      <!-- Checkbox Minimalista F7 -->
+      <div class="sidebar-section">
+        <label class="f7-box">
+          <input type="checkbox" id="chk-f7">
+          <span>F7</span>
+        </label>
+      </div>
+
+      <!-- Painel Condicional: Aba Por Grupo -->
+      <div id="painel-grupo-sidebar" class="sidebar-section">
+        <span class="control-label">Ordenação:</span>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="agrupar_por" value="periodo" checked> Período
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="agrupar_por" value="grupo"> Grupo
+          </label>
+        </div>
+      </div>
+
+      <!-- Painel Condicional: Aba Por País -->
+      <div id="painel-pais-sidebar" class="sidebar-section" style="display: none;">
+        <span class="control-label">Linhas da tabela:</span>
+        <div class="radio-group" style="margin-bottom: 0.75rem;">
+          <label class="radio-label">
+            <input type="radio" name="modo_tempo_pais" value="anual" checked> Ano a ano
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="modo_tempo_pais" value="periodo"> Por período (definido na 1ª aba)
+          </label>
+        </div>
+
+        <span class="control-label">País(es):</span>
+        <select id="select-pais" class="form-select" multiple size="5"></select>
+        <div id="chips-paises" class="chips-container"></div>
+      </div>
+
+      <!-- Accordion: Períodos -->
+      <div class="accordion-item open">
+        <div class="accordion-header">
+          <span>Períodos</span>
+          <span class="accordion-icon">&#9662;</span>
+        </div>
+        <div class="accordion-content">
+          <label class="control-label" for="select-preset">Partir de um modelo</label>
+          <select id="select-preset" class="form-select" style="margin-bottom: 0.65rem;">
+            <option value="script">Script (quinquênios)</option>
+            <option value="proposta">Proposta: 00-05 / 06-09 / 10-14 / 15-19 / 20-25</option>
+            <option value="ciclos">Ciclos de liquidez (6 fases)</option>
+            <option value="trienios">Triênios</option>
+            <option value="bienios">Biênios</option>
+            <option value="anual">Ano a ano</option>
+          </select>
+
+          <label class="control-label" for="txt-periodos">Períodos (um por linha)</label>
+          <textarea id="txt-periodos" class="form-textarea" rows="6"></textarea>
+          <p class="help-text">Formato: 2003-2007 ou 2003-2007: rótulo.</p>
+          <p id="msg-periodos" class="help-text" style="color: var(--text-main); font-weight: 500;"></p>
+        </div>
+      </div>
+
+      <!-- Accordion: Grupos de Países -->
+      <div class="accordion-item">
+        <div class="accordion-header">
+          <span>Grupos de países na tabela</span>
+          <span class="accordion-icon">&#9662;</span>
+        </div>
+        <div class="accordion-content">
+          <div id="lista-grupos-tabela" class="checkbox-list"></div>
+        </div>
+      </div>
+
+      <!-- Accordion: Agregação -->
+      <div class="accordion-item">
+        <div class="accordion-header">
+          <span>Método de Agregação</span>
+          <span class="accordion-icon">&#9662;</span>
+        </div>
+        <div class="accordion-content">
+          <div class="radio-group">
+            <label class="radio-label">
+              <input type="radio" name="metodo_agregacao" value="script" checked>
+              Média das médias anuais
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="metodo_agregacao" value="pooled">
+              Média de todas as obs. país-ano
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="metodo_agregacao" value="mediana">
+              Mediana das medianas anuais
+            </label>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Conteúdo Principal -->
+    <main class="app-content">
+      
+      <!-- Abas de Navegação -->
+      <nav class="tabs-nav">
+        <button class="tab-btn active" data-tab="grupo">Por Grupo</button>
+        <button class="tab-btn" data-tab="pais">Por País</button>
+      </nav>
+
+      <!-- Barra de Ferramentas (Título da Tabela + Download) -->
+      <div class="content-toolbar">
+        <h2 id="content-title" class="content-title">Retornos por período</h2>
+        <button id="btn-exportar" class="btn-export">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Excel
+        </button>
+      </div>
+
+      <!-- Tabela Estilo GT com Sticky Header -->
+      <div id="tabela-container" class="table-container">
+        <div class="state-message">Carregando dados...</div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Fallback de dados para abertura offline direta via file:/// -->
+  <script src="data/dados.js?v=2"></script>
+  <!-- Lógica da Aplicação -->
+  <script src="app.js?v=2"></script>
+
+</body>
+</html>
