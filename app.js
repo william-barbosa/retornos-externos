@@ -26,7 +26,14 @@
     paises_grafico_estoque: ["USA", "BRA", "DEU"],
     metrica_grafico_estoque: "iip", // "iip" | "a_p" | "l_p" | "res" | "res_pib"
     unidade_estoque: "usd", // "usd" | "pib"
-    chartInstance: null
+    chartInstance: null,
+
+    // Controles da Aba Liquidez Internacional
+    modo_tabela_liquidez: "ciclos", // "ciclos" | "periodos"
+    chartLiquidezInstances: {},
+
+    // Controles da Aba Classificação
+    busca_classificacao: ""
   };
 
   const VARS = ["yield_A", "yield_L", "yield_dif", "kg_A", "kg_L", "kg_dif", "TR_A", "TR_L", "TR_dif"];
@@ -544,6 +551,293 @@
   }
 
   // =============================================================================
+  // Renderização do Facet Grid de Barras (Aba Liquidez Internacional)
+  // =============================================================================
+  function renderizarFacetLiquidez() {
+    const cardEl = document.getElementById("card-facet-liquidez");
+    if (state.aba_ativa !== "liquidez") {
+      if (cardEl) cardEl.style.display = "none";
+      return;
+    }
+
+    if (cardEl) cardEl.style.display = "block";
+    if (!window.Chart) return;
+
+    const gruposFacet = [
+      { id: "chart-liquidez-emerging", tipo: "Emerging Markets" },
+      { id: "chart-liquidez-frontier", tipo: "Frontier Markets" },
+      { id: "chart-liquidez-other", tipo: "Other Developing" }
+    ];
+
+    const anos = Array.from({ length: 25 }, (_, i) => 2000 + i);
+    const dadosFacet = state.dados.liquidez_facet || [];
+
+    gruposFacet.forEach(cfg => {
+      const canvas = document.getElementById(cfg.id);
+      if (!canvas) return;
+
+      const dadosGrupo = dadosFacet.filter(d => d.tipo === cfg.tipo);
+
+      const pctQueima = anos.map(ano => {
+        const item = dadosGrupo.find(d => d.ano === ano);
+        return item ? item.pct_queimando : 0;
+      });
+
+      const pctSevero = anos.map(ano => {
+        const item = dadosGrupo.find(d => d.ano === ano);
+        return item ? item.pct_severo : 0;
+      });
+
+      const linhaRef = anos.map(() => 50);
+
+      if (state.chartLiquidezInstances[cfg.id]) {
+        state.chartLiquidezInstances[cfg.id].destroy();
+      }
+
+      state.chartLiquidezInstances[cfg.id] = new Chart(canvas, {
+        data: {
+          labels: anos.map(String),
+          datasets: [
+            {
+              type: "bar",
+              label: "% com Perda de Reservas (ΔR < 0)",
+              data: pctQueima,
+              backgroundColor: "#2c3e50dd",
+              borderRadius: 3,
+              order: 2
+            },
+            {
+              type: "line",
+              label: "% Queda Severa (>10%)",
+              data: pctSevero,
+              borderColor: "#dc2626",
+              backgroundColor: "#dc2626",
+              borderWidth: 2.2,
+              pointRadius: 2,
+              pointHoverRadius: 4,
+              tension: 0.1,
+              order: 1
+            },
+            {
+              type: "line",
+              label: "Linha de 50%",
+              data: linhaRef,
+              borderColor: "#94a3b8",
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              order: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  if (ctx.dataset.label === "Linha de 50%") return null;
+                  const val = ctx.parsed.y;
+                  return `${ctx.dataset.label}: ${val.toFixed(1).replace(".", ",")}%`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              min: 0,
+              max: 100,
+              ticks: {
+                stepSize: 25,
+                callback: val => val + "%",
+                font: { size: 10 }
+              },
+              grid: { color: "#f1f5f9" }
+            },
+            x: {
+              grid: { display: false },
+              ticks: {
+                font: { size: 9 },
+                maxRotation: 45,
+                minRotation: 45
+              }
+            }
+          }
+        }
+      });
+    });
+  }
+
+  // =============================================================================
+  // Cálculo da Tabela de Liquidez Internacional
+  // =============================================================================
+  function calcularTabelaLiquidez() {
+    if (state.modo_tabela_liquidez === "ciclos") {
+      const ciclosOficiais = state.dados.tabela_ciclos || [];
+      return ciclosOficiais.map((item, idx) => ({
+        ciclo: item.ciclo_liquidez,
+        ordemCiclo: idx,
+        tipo: item.tipo,
+        n_obs: item.n_obs,
+        pct_queimando: item.pct_queimando,
+        pct_severo: item.pct_severo,
+        crescimento_mediano: item.crescimento_mediano
+      }));
+    } else {
+      // Períodos customizados da barra lateral
+      const periodos = state.periodos_parsed;
+      const obsLiquidez = state.dados.liquidez_obs || [];
+      const gruposPeriferia = ["Emerging Markets", "Frontier Markets", "Other Developing"];
+      const resultados = [];
+
+      periodos.forEach(per => {
+        const obsPer = obsLiquidez.filter(o => per.anos.includes(o.ano));
+        gruposPeriferia.forEach(g => {
+          const obsGrupo = obsPer.filter(o => o.tipo === g);
+          if (!obsGrupo.length) return;
+
+          const n_obs = obsGrupo.length;
+          const n_queimando = obsGrupo.filter(o => o.gasta).length;
+          const n_severo = obsGrupo.filter(o => o.severo).length;
+          const valsVar = obsGrupo.map(o => o.var_pct);
+
+          resultados.push({
+            ciclo: per.rotulo,
+            ordemCiclo: per.ordem,
+            tipo: g,
+            n_obs: n_obs,
+            pct_queimando: Math.round((n_queimando / n_obs) * 1000) / 10,
+            pct_severo: Math.round((n_severo / n_obs) * 1000) / 10,
+            crescimento_mediano: Math.round((calcMediana(valsVar) || 0) * 10) / 10
+          });
+        });
+      });
+      return resultados;
+    }
+  }
+
+  function gerarHtmlTabelaLiquidez(dados) {
+    const isCiclos = state.modo_tabela_liquidez === "ciclos";
+    const stubhead = isCiclos ? "Ciclo de Liquidez" : "Período";
+
+    const ciclosMap = new Map();
+    dados.sort((a, b) => a.ordemCiclo - b.ordemCiclo || a.tipo.localeCompare(b.tipo));
+
+    for (const d of dados) {
+      if (!ciclosMap.has(d.ciclo)) ciclosMap.set(d.ciclo, []);
+      ciclosMap.get(d.ciclo).push(d);
+    }
+
+    let tbodyHtml = "<tbody>";
+    for (const [cicloNome, itens] of ciclosMap.entries()) {
+      tbodyHtml += `
+        <tr class="group-header-row">
+          <td colspan="5">${cicloNome}</td>
+        </tr>
+      `;
+      for (const item of itens) {
+        const queimaDestaque = item.pct_queimando >= 40 ? "val-neg font-weight-medium" : "";
+        const severoDestaque = item.pct_severo >= 20 ? "val-neg font-weight-medium" : "";
+        tbodyHtml += `
+          <tr>
+            <td class="text-left font-weight-medium">${item.tipo}</td>
+            <td class="text-right">${item.n_obs}</td>
+            <td class="text-right ${queimaDestaque}">${item.pct_queimando.toFixed(1).replace(".", ",")}%</td>
+            <td class="text-right ${severoDestaque}">${item.pct_severo.toFixed(1).replace(".", ",")}%</td>
+            <td class="text-right ${item.crescimento_mediano < 0 ? 'val-neg' : ''}">${item.crescimento_mediano.toFixed(1).replace(".", ",")}%</td>
+          </tr>
+        `;
+      }
+    }
+    tbodyHtml += "</tbody>";
+
+    return `
+      <table class="gt-table">
+        <thead>
+          <tr>
+            <th class="stubhead">Grupo</th>
+            <th class="text-right">Obs (N)</th>
+            <th class="text-right">% com Perda de Reservas</th>
+            <th class="text-right">% com Queda Severa (&gt;10%)</th>
+            <th class="text-right">Crescimento Mediano Anual (%)</th>
+          </tr>
+        </thead>
+        ${tbodyHtml}
+      </table>
+    `;
+  }
+
+  // =============================================================================
+  // Renderização da Aba de Classificação de Países
+  // =============================================================================
+  function renderizarClassificacao() {
+    const container = document.getElementById("container-grupos-classificacao");
+    if (!container) return;
+
+    const listaPaises = state.dados.classificacao_paises || [];
+    const busca = (state.busca_classificacao || "").trim().toLowerCase();
+
+    let paisesFiltrados = listaPaises;
+    if (busca) {
+      paisesFiltrados = listaPaises.filter(p =>
+        p.pais.toLowerCase().includes(busca) || (p.iso && p.iso.toLowerCase().includes(busca))
+      );
+    }
+
+    const descricoesGrupos = {
+      "USA": "Estados Unidos — polo emissor da moeda de reserva e centro hegemônico do sistema monetário internacional.",
+      "AEs": "G7 ex-EUA (Canadá, França, Alemanha, Itália, Japão, Reino Unido) — economias avançadas centrais.",
+      "AEs Periféricos": "Economias avançadas fora do G7 (Europa não-G7, Ásia avançada, Oceania) com mercados de capitais maduros.",
+      "Emerging Markets": "Economias emergentes integradas aos fluxos globais de capital com vulnerabilidades periféricas típicas.",
+      "Frontier Markets": "Mercados de fronteira com maior restrição externa de liquidez e vulnerabilidade a choques cambiais.",
+      "Other Developing": "Demais economias em desenvolvimento e de menor renda relativa."
+    };
+
+    const ordemGrupos = ["USA", "AEs", "AEs Periféricos", "Emerging Markets", "Frontier Markets", "Other Developing"];
+
+    let html = "";
+    ordemGrupos.forEach(grupo => {
+      const paisesDoGrupo = paisesFiltrados.filter(p => p.tipo === grupo);
+      if (busca && !paisesDoGrupo.length) return;
+
+      const chipsHtml = paisesDoGrupo.map(p => `
+        <span class="pais-badge">
+          ${p.pais}
+          <span class="pais-badge-iso">${p.iso || "—"}</span>
+        </span>
+      `).join("");
+
+      html += `
+        <div class="grupo-classificacao-card">
+          <div class="grupo-card-header">
+            <div>
+              <span class="grupo-card-title">${grupo}</span>
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.15rem;">${descricoesGrupos[grupo] || ""}</p>
+            </div>
+            <span class="badge-count">${paisesDoGrupo.length} ${paisesDoGrupo.length === 1 ? 'país' : 'países'}</span>
+          </div>
+          <div class="grupo-paises-chips">
+            ${chipsHtml || '<span style="color: var(--text-muted); font-size: 0.8rem;">Nenhum país encontrado para a busca.</span>'}
+          </div>
+        </div>
+      `;
+    });
+
+    if (!html) {
+      html = '<div class="state-message">Nenhum país encontrado com o termo pesquisado.</div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  // =============================================================================
   // Renderização de Tabelas no Estilo GT com Sticky Header
   // =============================================================================
   function renderizarTabela() {
@@ -581,6 +875,16 @@
         return;
       }
       container.innerHTML = gerarHtmlTabelaEstoques(dadosEstoques);
+    } else if (state.aba_ativa === "liquidez") {
+      tituloEl.innerText = state.modo_tabela_liquidez === "ciclos"
+        ? "Regimes Globais de Liquidez e Perda de Reservas"
+        : "Perda de Reservas por Período Customizado";
+      const dadosLiquidez = calcularTabelaLiquidez();
+      if (!dadosLiquidez.length) {
+        container.innerHTML = '<div class="state-message">Sem observações de liquidez para a seleção.</div>';
+        return;
+      }
+      container.innerHTML = gerarHtmlTabelaLiquidez(dadosLiquidez);
     }
   }
 
@@ -801,10 +1105,16 @@
     const isGrupo = state.aba_ativa === "grupo";
     const isPais = state.aba_ativa === "pais";
     const isEstoques = state.aba_ativa === "estoques";
+    const isLiquidez = state.aba_ativa === "liquidez";
 
     let dados, cabecalho, prefix;
 
-    if (isEstoques) {
+    if (isLiquidez) {
+      dados = calcularTabelaLiquidez();
+      if (!dados.length) return;
+      cabecalho = [state.modo_tabela_liquidez === "ciclos" ? "Ciclo de Liquidez" : "Período", "Grupo", "Obs (N)", "% Perda de Reservas", "% Queda Severa (>10%)", "Crescimento Mediano Anual (%)"];
+      prefix = "Liquidez_Internacional_";
+    } else if (isEstoques) {
       dados = calcularTabelaEstoques();
       if (!dados.length) return;
       cabecalho = ["Período", "Grupo", "Ativos (US$ bi)", "Passivos (US$ bi)", "IIP Líquido (US$ bi)", "PIB (US$ bi)", "Reservas / PIB (%)"];
@@ -826,7 +1136,9 @@
     const linhasExport = [cabecalho];
 
     for (const d of dados) {
-      if (isEstoques) {
+      if (isLiquidez) {
+        linhasExport.push([d.ciclo, d.tipo, d.n_obs, d.pct_queimando, d.pct_severo, d.crescimento_mediano]);
+      } else if (isEstoques) {
         linhasExport.push([d.periodo, d.grupo, d.a_p, d.l_p, d.iip, d.pib, d.res_pib]);
       } else if (isGrupo) {
         const linha = state.agrupar_por === "periodo" ? [d.periodo, d.grupo] : [d.grupo, d.periodo];
@@ -958,7 +1270,7 @@
       });
     }
 
-    // Abas de navegação (Por Grupo / Por País / Estoques e IIP)
+    // Abas de navegação (Por Grupo / Por País / Estoques e IIP / Liquidez / Classificação)
     document.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -967,11 +1279,20 @@
 
         // Alterna visibilidade dos painéis condicionais na sidebar
         const f7Box = document.getElementById("f7-container");
-        if (f7Box) f7Box.style.display = state.aba_ativa === "estoques" ? "none" : "block";
+        if (f7Box) f7Box.style.display = (state.aba_ativa === "grupo" || state.aba_ativa === "pais") ? "block" : "none";
 
         document.getElementById("painel-grupo-sidebar").style.display = state.aba_ativa === "grupo" ? "block" : "none";
         document.getElementById("painel-pais-sidebar").style.display = state.aba_ativa === "pais" ? "block" : "none";
         document.getElementById("painel-estoques-sidebar").style.display = state.aba_ativa === "estoques" ? "block" : "none";
+        document.getElementById("painel-liquidez-sidebar").style.display = state.aba_ativa === "liquidez" ? "block" : "none";
+
+        // Accordions na sidebar
+        const accordions = document.querySelectorAll(".accordion-item");
+        if (accordions.length >= 3) {
+          accordions[0].style.display = state.aba_ativa === "classificacao" ? "none" : "block"; // Períodos
+          accordions[1].style.display = (state.aba_ativa === "grupo" || state.aba_ativa === "pais" || state.aba_ativa === "estoques") ? "block" : "none"; // Grupos
+          accordions[2].style.display = (state.aba_ativa === "grupo" || state.aba_ativa === "pais") ? "block" : "none"; // Método
+        }
 
         renderizar();
       });
@@ -1160,11 +1481,56 @@
         renderizarGraficoEstoques();
       });
     });
+
+    // Modo da tabela de liquidez
+    document.querySelectorAll("input[name='modo_tabela_liquidez']").forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        state.modo_tabela_liquidez = e.target.value;
+        renderizarTabela();
+      });
+    });
+
+    // Busca rápida na aba de classificação
+    const inputBuscaClass = document.getElementById("input-busca-classificacao");
+    if (inputBuscaClass) {
+      inputBuscaClass.addEventListener("input", (e) => {
+        state.busca_classificacao = e.target.value;
+        renderizarClassificacao();
+      });
+    }
   }
 
   function renderizar() {
-    renderizarGraficoEstoques();
-    renderizarTabela();
+    const isEstoques = state.aba_ativa === "estoques";
+    const isLiquidez = state.aba_ativa === "liquidez";
+    const isClassificacao = state.aba_ativa === "classificacao";
+
+    const cardEstoques = document.getElementById("card-grafico-estoques");
+    if (cardEstoques) cardEstoques.style.display = isEstoques ? "block" : "none";
+
+    const cardFacetLiquidez = document.getElementById("card-facet-liquidez");
+    if (cardFacetLiquidez) cardFacetLiquidez.style.display = isLiquidez ? "block" : "none";
+
+    const cardClassificacao = document.getElementById("card-classificacao");
+    if (cardClassificacao) cardClassificacao.style.display = isClassificacao ? "block" : "none";
+
+    const toolbar = document.getElementById("content-toolbar-container");
+    if (toolbar) toolbar.style.display = isClassificacao ? "none" : "flex";
+
+    const tabelaCont = document.getElementById("tabela-container");
+    if (tabelaCont) tabelaCont.style.display = isClassificacao ? "none" : "block";
+
+    if (isEstoques) {
+      renderizarGraficoEstoques();
+    } else if (isLiquidez) {
+      renderizarFacetLiquidez();
+    } else if (isClassificacao) {
+      renderizarClassificacao();
+    }
+
+    if (!isClassificacao) {
+      renderizarTabela();
+    }
   }
 
   // Auto-iniciar

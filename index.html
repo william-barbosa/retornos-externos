@@ -115,6 +115,20 @@
         </div>
       </div>
 
+      <!-- Painel Condicional: Aba Liquidez Internacional -->
+      <div id="painel-liquidez-sidebar" class="sidebar-section" style="display: none;">
+        <span class="control-label">Tabela de Liquidez:</span>
+        <div class="radio-group" style="margin-bottom: 0.75rem;">
+          <label class="radio-label">
+            <input type="radio" name="modo_tabela_liquidez" value="ciclos" checked> Regimes Globais (7 Ciclos)
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="modo_tabela_liquidez" value="periodos"> Períodos da Barra Lateral
+          </label>
+        </div>
+        <p class="help-text">Os gráficos acima mostram a proporção anual de países com perda de reservas nos 3 grupos da periferia.</p>
+      </div>
+
       <!-- Accordion: Períodos -->
       <div class="accordion-item open">
         <div class="accordion-header">
@@ -184,6 +198,8 @@
         <button class="tab-btn active" data-tab="grupo">Por Grupo</button>
         <button class="tab-btn" data-tab="pais">Por País</button>
         <button class="tab-btn" data-tab="estoques">Estoques e IIP</button>
+        <button class="tab-btn" data-tab="liquidez">Liquidez Internacional</button>
+        <button class="tab-btn" data-tab="classificacao">Classificação</button>
       </nav>
 
       <!-- Card do Gráfico (Aba Estoques e IIP) -->
@@ -196,8 +212,98 @@
         </div>
       </div>
 
+      <!-- Container da Aba Liquidez Internacional (Facet Grid de Barras) -->
+      <div id="card-facet-liquidez" class="chart-card" style="display: none;">
+        <div class="chart-header">
+          <div>
+            <h3 class="chart-title">Percentual de Países com Perda de Reservas</h3>
+            <p class="chart-subtitle">Proporção anual de economias periféricas desacumulando reservas oficiais (barras) e incidência de quedas severas (&gt;10% ao ano, linha)</p>
+          </div>
+          <div class="facet-legend">
+            <span class="legend-item"><span class="legend-color-box bar-color"></span> Perda de Reservas (&Delta;R &lt; 0)</span>
+            <span class="legend-item"><span class="legend-line-box line-color"></span> Queda Severa (&gt;10%)</span>
+            <span class="legend-item"><span class="legend-dashed-box"></span> Linha de 50%</span>
+          </div>
+        </div>
+        <!-- Grade Responsiva Facet Grid -->
+        <div class="facet-grid">
+          <div class="facet-card">
+            <h4 class="facet-card-title">Emerging Markets</h4>
+            <div class="facet-canvas-container">
+              <canvas id="chart-liquidez-emerging"></canvas>
+            </div>
+          </div>
+          <div class="facet-card">
+            <h4 class="facet-card-title">Frontier Markets</h4>
+            <div class="facet-canvas-container">
+              <canvas id="chart-liquidez-frontier"></canvas>
+            </div>
+          </div>
+          <div class="facet-card">
+            <h4 class="facet-card-title">Other Developing</h4>
+            <div class="facet-canvas-container">
+              <canvas id="chart-liquidez-other"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Container da Aba Classificação e Metodologia -->
+      <div id="card-classificacao" style="display: none;">
+        <!-- Seção 1: Definições e Métricas -->
+        <div class="metodologia-section">
+          <h3 class="section-title">Definições e Métricas Operacionais</h3>
+          <div class="metodologia-grid">
+            <div class="metodologia-card">
+              <div class="metodologia-badge">Retornos Externos</div>
+              <h4>Taxas de Retorno e Diferenciais</h4>
+              <p>O retorno total dos ativos ($r^A$) e passivos ($r^L$) decompõe-se em rendimentos correntes e ganhos de capital:</p>
+              <code>r<sup>A</sup> = Yield<sup>A</sup> + KG<sup>A</sup></code><br>
+              <code>r<sup>L</sup> = Yield<sup>L</sup> + KG<sup>L</sup></code><br>
+              <code>Diferencial = r<sup>A</sup> - r<sup>L</sup></code>
+            </div>
+            <div class="metodologia-card">
+              <div class="metodologia-badge">Derivativos</div>
+              <h4>Toggle F7 (Derivativos Financeiros)</h4>
+              <p>Alterna entre a série padronizada sem derivativos e a série que incorpora os derivativos financeiros nas contas de fluxos e variações de valor da posição externa líquida (BPM6).</p>
+            </div>
+            <div class="metodologia-card">
+              <div class="metodologia-badge">Liquidez</div>
+              <h4>Percentual de Perda de Reservas</h4>
+              <p>Mede a proporção de países de cada grupo com contração nas reservas em cada ano:</p>
+              <code>&Delta;R<sub>t</sub> = (R<sub>t</sub> - R<sub>t-1</sub>) / R<sub>t-1</sub> &times; 100</code>
+              <p style="margin-top:0.4rem;"><strong>Perda:</strong> &Delta;R &lt; 0. <strong>Queda Severa:</strong> &Delta;R &le; -10%.</p>
+            </div>
+            <div class="metodologia-card">
+              <div class="metodologia-badge">Fontes</div>
+              <h4>Estatísticas Oficiais Utilizadas</h4>
+              <ul class="fontes-list">
+                <li><strong>FMI - Balance of Payments (BOP):</strong> Fluxos e rendas.</li>
+                <li><strong>FMI - International Investment Position (IIP):</strong> Estoques externos (A_P, L_P).</li>
+                <li><strong>FMI - International Liquidity (IL):</strong> Série oficial <code>TRGMV_REVS</code> de reservas totais.</li>
+                <li><strong>Banco Mundial (WDI):</strong> PIB em dólares correntes (<code>NY.GDP.MKTP.CD</code>).</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Seção 2: Mapeamento de Países por Grupo -->
+        <div class="classificacao-paises-section">
+          <div class="classificacao-header">
+            <div>
+              <h3 class="section-title">Mapeamento dos Países por Grupo Estrutural</h3>
+              <p class="section-subtitle">Classificação dos países do sistema monetário internacional (FMI Table A4.1.2 - 2025)</p>
+            </div>
+            <div class="busca-paises-box">
+              <input type="text" id="input-busca-classificacao" class="form-input" placeholder="Buscar país ou código ISO (ex: BRA, Brasil, Chile)...">
+            </div>
+          </div>
+          <div id="container-grupos-classificacao" class="grupos-classificacao-grid"></div>
+        </div>
+      </div>
+
       <!-- Barra de Ferramentas (Título da Tabela + Download) -->
-      <div class="content-toolbar">
+      <div id="content-toolbar-container" class="content-toolbar">
         <h2 id="content-title" class="content-title">Retornos por período</h2>
         <button id="btn-exportar" class="btn-export">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
