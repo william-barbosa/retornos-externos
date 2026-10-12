@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,10 @@
   <link rel="stylesheet" href="style.css">
   <!-- SheetJS para exportação real em Excel .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js para visualização anual interativa -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 </head>
+
 <body>
 
   <!-- Header Superior -->
@@ -15,22 +19,23 @@
     <div class="header-content">
       <div>
         <h1 class="app-title">Retornos externos por período, grupo e país</h1>
-        <p class="app-subtitle">Diferenciais de taxas de retorno e fluxos brutos dos ativos e passivos externos (2000–2025)</p>
+        <p class="app-subtitle">Diferenciais de taxas de retorno e fluxos brutos dos ativos e passivos externos
+          (2000–2025)</p>
       </div>
     </div>
   </header>
 
   <!-- Layout Principal -->
   <div class="app-layout">
-    
+
     <!-- Sidebar -->
     <aside class="app-sidebar">
-      
+
       <!-- Checkbox Minimalista F7 -->
-      <div class="sidebar-section">
+      <div id="f7-container" class="sidebar-section">
         <label class="f7-box">
           <input type="checkbox" id="chk-f7">
-          <span>F7</span>
+          <span>F7 (Inclui derivativos)</span>
         </label>
       </div>
 
@@ -64,6 +69,52 @@
         <div id="chips-paises" class="chips-container"></div>
       </div>
 
+      <!-- Painel Condicional: Aba Estoques e IIP -->
+      <div id="painel-estoques-sidebar" class="sidebar-section" style="display: none;">
+        <span class="control-label">Visualização do Gráfico:</span>
+        <div class="radio-group" style="margin-bottom: 0.75rem;">
+          <label class="radio-label">
+            <input type="radio" name="visao_grafico_estoque" value="grupo" checked> Média do Grupo
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="visao_grafico_estoque" value="pais"> Comparar Países
+          </label>
+        </div>
+
+        <!-- Seleção de Grupos para o gráfico -->
+        <div id="bloco-select-grupo-estoque" style="margin-bottom: 0.75rem;">
+          <span class="control-label">Grupo(s) no gráfico:</span>
+          <select id="select-grupo-estoque" class="form-select" multiple size="4"></select>
+          <div id="chips-grupos-estoque" class="chips-container"></div>
+        </div>
+
+        <!-- Seleção de Países para o gráfico -->
+        <div id="bloco-select-pais-estoque" style="display: none; margin-bottom: 0.75rem;">
+          <span class="control-label">País(es) no gráfico:</span>
+          <select id="select-pais-estoque" class="form-select" multiple size="4"></select>
+          <div id="chips-paises-estoque" class="chips-container"></div>
+        </div>
+
+        <span class="control-label">Métrica no Gráfico:</span>
+        <select id="select-metrica-estoque" class="form-select" style="margin-bottom: 0.75rem;">
+          <option value="iip">Posição Líquida (IIP)</option>
+          <option value="a_p">Ativos Externos (A_P)</option>
+          <option value="l_p">Passivos Externos (L_P)</option>
+          <option value="res">Reservas Totais (TRGMV_REVS)</option>
+          <option value="res_pib">Reservas / PIB (%)</option>
+        </select>
+
+        <span class="control-label">Unidade:</span>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="unidade_estoque" value="usd" checked> US$ Bilhões
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="unidade_estoque" value="pib"> % do PIB
+          </label>
+        </div>
+      </div>
+
       <!-- Accordion: Períodos -->
       <div class="accordion-item open">
         <div class="accordion-header">
@@ -73,8 +124,8 @@
         <div class="accordion-content">
           <label class="control-label" for="select-preset">Partir de um modelo</label>
           <select id="select-preset" class="form-select" style="margin-bottom: 0.65rem;">
-            <option value="script">Script (quinquênios)</option>
-            <option value="proposta">Proposta: 00-05 / 06-09 / 10-14 / 15-19 / 20-25</option>
+            <option value="script">Quinquênios</option>
+            <option value="proposta">Reunião: 00-05 / 06-09 / 10-14 / 15-19 / 20-25</option>
             <option value="ciclos">Ciclos de liquidez (6 fases)</option>
             <option value="trienios">Triênios</option>
             <option value="bienios">Biênios</option>
@@ -127,18 +178,30 @@
 
     <!-- Conteúdo Principal -->
     <main class="app-content">
-      
+
       <!-- Abas de Navegação -->
       <nav class="tabs-nav">
         <button class="tab-btn active" data-tab="grupo">Por Grupo</button>
         <button class="tab-btn" data-tab="pais">Por País</button>
+        <button class="tab-btn" data-tab="estoques">Estoques e IIP</button>
       </nav>
+
+      <!-- Card do Gráfico (Aba Estoques e IIP) -->
+      <div id="card-grafico-estoques" class="chart-card" style="display: none;">
+        <div class="chart-header">
+          <h3 id="chart-estoques-titulo" class="chart-title">Evolução Anual dos Estoques</h3>
+        </div>
+        <div class="chart-wrapper">
+          <canvas id="chart-estoques-canvas"></canvas>
+        </div>
+      </div>
 
       <!-- Barra de Ferramentas (Título da Tabela + Download) -->
       <div class="content-toolbar">
         <h2 id="content-title" class="content-title">Retornos por período</h2>
         <button id="btn-exportar" class="btn-export">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -162,4 +225,5 @@
   <script src="app.js?v=2"></script>
 
 </body>
+
 </html>

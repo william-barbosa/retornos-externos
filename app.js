@@ -9,7 +9,7 @@
   const state = {
     dados: null,
     usar_f7: false,
-    aba_ativa: "grupo", // "grupo" | "pais"
+    aba_ativa: "grupo", // "grupo" | "pais" | "estoques"
     agrupar_por: "periodo", // "periodo" | "grupo"
     modo_tempo_pais: "anual", // "anual" | "periodo"
     preset: "script",
@@ -18,19 +18,42 @@
     grupos_paises: {}, // { "USA": ["USA"], "AEs": [...], ... }
     paises_selecionados: ["BRA"],
     periodos_texto: "",
-    periodos_parsed: []
+    periodos_parsed: [],
+
+    // Controles da Aba Estoques e IIP
+    visao_grafico_estoque: "grupo", // "grupo" | "pais"
+    grupos_grafico_estoque: ["USA", "AEs", "Emerging Markets"],
+    paises_grafico_estoque: ["USA", "BRA", "DEU"],
+    metrica_grafico_estoque: "iip", // "iip" | "a_p" | "l_p" | "res" | "res_pib"
+    unidade_estoque: "usd", // "usd" | "pib"
+    chartInstance: null
   };
 
   const VARS = ["yield_A", "yield_L", "yield_dif", "kg_A", "kg_L", "kg_dif", "TR_A", "TR_L", "TR_dif"];
+
+  const CORES_PALETA = {
+    "USA": "#1d4ed8",
+    "AEs": "#0284c7",
+    "AEs Periféricos": "#0d9488",
+    "Emerging Markets": "#059669",
+    "Frontier Markets": "#d97706",
+    "Other Developing": "#b45309",
+    "Outros": "#6b7280"
+  };
+
+  const CORES_PAISES = [
+    "#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c",
+    "#0891b2", "#ca8a04", "#4f46e5", "#059669", "#be123c"
+  ];
 
   const PRESETS = {
     script: ["2000-2004", "2005-2009", "2010-2014", "2015-2019", "2020-2025"],
     proposta: ["2000-2005", "2006-2009", "2010-2014", "2015-2019", "2020-2025"],
     ciclos: [
-      "2000-2002: Crises e dotcom",
+      "2000-2002: Crises",
       "2003-2007: Superciclo",
-      "2008-2009: Crise financeira global",
-      "2010-2013: QE",
+      "2008-2009: Crise Subprime",
+      "2010-2013: Quebra Estrutural",
       "2014-2019: Fim do boom e dólar forte",
       "2020-2025: Pandemia e aperto do Fed"
     ],
@@ -116,13 +139,17 @@
   // Funções Estatísticas
   function calcMedia(arr) {
     if (!arr || !arr.length) return null;
-    const soma = arr.reduce((acc, v) => acc + v, 0);
-    return soma / arr.length;
+    const valid = arr.filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (!valid.length) return null;
+    const soma = valid.reduce((acc, v) => acc + v, 0);
+    return soma / valid.length;
   }
 
   function calcMediana(arr) {
     if (!arr || !arr.length) return null;
-    const sorted = [...arr].sort((a, b) => a - b);
+    const valid = arr.filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (!valid.length) return null;
+    const sorted = [...valid].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
     return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
@@ -149,11 +176,21 @@
     };
   }
 
-  // Formatação em porcentagem com 2 decimais
+  // Formatações Numéricas
   function fmtPercent(val) {
     if (val === null || val === undefined || isNaN(val)) return "—";
     const num = (val * 100).toFixed(2).replace(".", ",");
     return `${num}%`;
+  }
+
+  function fmtBi(val) {
+    if (val === null || val === undefined || isNaN(val)) return "—";
+    return val.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  }
+
+  function fmtPctBr(val) {
+    if (val === null || val === undefined || isNaN(val)) return "—";
+    return val.toFixed(2).replace(".", ",") + "%";
   }
 
   // =============================================================================
@@ -166,7 +203,6 @@
     const grupos = state.grupos_ativos;
     const obsTotal = state.dados.obs;
 
-    // Mapa país -> grupos aos quais pertence
     const paisGruposMap = {};
     for (const g of grupos) {
       let listaPaises = state.grupos_paises[g] || [];
@@ -187,11 +223,9 @@
     const resultados = [];
 
     for (const per of periodos) {
-      // Filtra observações que caem nos anos do período
       const obsPeriodo = obsTotal.filter(o => per.anos.includes(o.ano));
 
       for (const g of grupos) {
-        // Observações pertencentes ao grupo g neste período
         const obsGrupo = obsPeriodo.filter(o => {
           const grps = paisGruposMap[o.iso];
           return grps && grps.includes(g);
@@ -202,8 +236,6 @@
         let resMetricas = {};
 
         if (metodo === "script") {
-          // Média das médias anuais (idêntico ao script R)
-          // 1. Média para cada ano do período
           const mediasPorAno = [];
           for (const ano of per.anos) {
             const obsAno = obsGrupo.filter(o => o.ano === ano);
@@ -219,18 +251,15 @@
 
           if (!mediasPorAno.length) continue;
 
-          // 2. Média das médias anuais
           for (const v of VARS) {
             resMetricas[v] = calcMedia(mediasPorAno.map(m => m[v]));
           }
         } else if (metodo === "pooled") {
-          // Média de todas as observações país-ano
           for (const v of VARS) {
             const vals = obsGrupo.map(o => extrairMetricas(o, comF7)[v]);
             resMetricas[v] = calcMedia(vals);
           }
         } else if (metodo === "mediana") {
-          // Mediana das medianas anuais
           const medianasPorAno = [];
           for (const ano of per.anos) {
             const obsAno = obsGrupo.filter(o => o.ano === ano);
@@ -273,7 +302,6 @@
     if (!obsTotal.length) return [];
 
     if (state.modo_tempo_pais === "anual") {
-      // Retornos ano a ano
       const ordenado = [...obsTotal].sort((a, b) => {
         if (a.pais !== b.pais) return a.pais.localeCompare(b.pais);
         return a.ano - b.ano;
@@ -286,7 +314,6 @@
         ...extrairMetricas(o, comF7)
       }));
     } else {
-      // Retornos por período
       const periodos = state.periodos_parsed;
       const fnCalc = state.metodo === "mediana" ? calcMediana : calcMedia;
       const res = [];
@@ -319,6 +346,204 @@
   }
 
   // =============================================================================
+  // Agregação dos Dados para Aba "Estoques e IIP"
+  // =============================================================================
+  function calcularTabelaEstoques() {
+    if (!state.dados.estoques) return [];
+    const periodos = state.periodos_parsed;
+    const grupos = state.grupos_ativos;
+    const estoquesTotal = state.dados.estoques;
+    const fnCalc = state.metodo === "mediana" ? calcMediana : calcMedia;
+
+    const paisGruposMap = {};
+    for (const g of grupos) {
+      let listaPaises = state.grupos_paises[g] || [];
+      if (typeof listaPaises === "string") listaPaises = [listaPaises];
+      for (const iso of listaPaises) {
+        if (!paisGruposMap[iso]) paisGruposMap[iso] = [];
+        paisGruposMap[iso].push(g);
+      }
+    }
+    for (const o of estoquesTotal) {
+      if (o.tipo && (!paisGruposMap[o.iso] || !paisGruposMap[o.iso].includes(o.tipo))) {
+        if (!paisGruposMap[o.iso]) paisGruposMap[o.iso] = [];
+        paisGruposMap[o.iso].push(o.tipo);
+      }
+    }
+
+    const resultados = [];
+
+    for (const per of periodos) {
+      const obsPeriodo = estoquesTotal.filter(o => per.anos.includes(o.ano));
+
+      for (const g of grupos) {
+        const obsGrupo = obsPeriodo.filter(o => {
+          const grps = paisGruposMap[o.iso];
+          return grps && grps.includes(g);
+        });
+
+        if (!obsGrupo.length) continue;
+
+        resultados.push({
+          periodo: per.rotulo,
+          ordemPeriodo: per.ordem,
+          grupo: g,
+          ordemGrupo: state.dados.grupos_ordem.indexOf(g),
+          a_p: fnCalc(obsGrupo.map(o => o.a_p)),
+          l_p: fnCalc(obsGrupo.map(o => o.l_p)),
+          iip: fnCalc(obsGrupo.map(o => o.iip)),
+          pib: fnCalc(obsGrupo.map(o => o.pib)),
+          res_pib: fnCalc(obsGrupo.map(o => o.res_pib))
+        });
+      }
+    }
+
+    return resultados;
+  }
+
+  // =============================================================================
+  // Renderização do Gráfico Interativo com Chart.js (Aba Estoques)
+  // =============================================================================
+  function renderizarGraficoEstoques() {
+    const cardEl = document.getElementById("card-grafico-estoques");
+    if (state.aba_ativa !== "estoques") {
+      if (cardEl) cardEl.style.display = "none";
+      return;
+    }
+
+    if (cardEl) cardEl.style.display = "block";
+    const canvas = document.getElementById("chart-estoques-canvas");
+    if (!canvas || !window.Chart) return;
+
+    const anos = Array.from({ length: 25 }, (_, i) => 2000 + i);
+    const metrica = state.metrica_grafico_estoque;
+    const unidade = state.unidade_estoque;
+    const visao = state.visao_grafico_estoque;
+    const estoquesTotal = state.dados.estoques || [];
+
+    // Mapeamento de campo conforme a unidade
+    let campoChave = metrica;
+    if (unidade === "pib") {
+      if (metrica === "a_p") campoChave = "ativo_pib";
+      else if (metrica === "l_p") campoChave = "passivo_pib";
+      else if (metrica === "iip") campoChave = "iip_pib";
+      else if (metrica === "res") campoChave = "res_pib";
+      else if (metrica === "res_pib") campoChave = "res_pib";
+    }
+
+    const labelsMetrica = {
+      iip: "Posição Internacional de Investimento Líquida (IIP)",
+      a_p: "Estoque de Ativos Externos (A_P)",
+      l_p: "Estoque de Passivos Externos (L_P)",
+      res: "Reservas Totais (TRGMV_REVS)",
+      res_pib: "Reservas Totais sobre o PIB (%)"
+    };
+
+    const sulfixoUnidade = (unidade === "pib" || metrica === "res_pib") ? "% do PIB" : "US$ Bilhões";
+    const tituloGrafico = `${labelsMetrica[metrica]} — ${sulfixoUnidade}`;
+    const tituloEl = document.getElementById("chart-estoques-titulo");
+    if (tituloEl) tituloEl.innerText = tituloGrafico;
+
+    const datasets = [];
+
+    if (visao === "grupo") {
+      const gruposSel = state.grupos_grafico_estoque;
+      gruposSel.forEach(g => {
+        const cor = CORES_PALETA[g] || "#3b82f6";
+        const dadosPontos = anos.map(ano => {
+          const obsAno = estoquesTotal.filter(o => o.ano === ano && o.tipo === g);
+          if (!obsAno.length) return null;
+          const valores = obsAno.map(o => o[campoChave]).filter(v => v !== null && !isNaN(v));
+          return calcMedia(valores);
+        });
+
+        datasets.push({
+          label: g,
+          data: dadosPontos,
+          borderColor: cor,
+          backgroundColor: cor + "33",
+          borderWidth: 2.5,
+          pointRadius: 2.5,
+          pointHoverRadius: 5,
+          tension: 0.25
+        });
+      });
+    } else {
+      const paisesSel = state.paises_grafico_estoque;
+      paisesSel.forEach((iso, idx) => {
+        const cor = CORES_PAISES[idx % CORES_PAISES.length];
+        const nomePais = state.dados.paises.find(p => p.iso === iso)?.pais || iso;
+        const dadosPontos = anos.map(ano => {
+          const obs = estoquesTotal.find(o => o.ano === ano && o.iso === iso);
+          return obs && obs[campoChave] !== undefined ? obs[campoChave] : null;
+        });
+
+        datasets.push({
+          label: nomePais,
+          data: dadosPontos,
+          borderColor: cor,
+          backgroundColor: cor + "33",
+          borderWidth: 2.5,
+          pointRadius: 2.5,
+          pointHoverRadius: 5,
+          tension: 0.25
+        });
+      });
+    }
+
+    if (state.chartInstance) {
+      state.chartInstance.destroy();
+    }
+
+    state.chartInstance = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: anos.map(String),
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: "index",
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { font: { size: 12, family: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto" } }
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                const val = context.parsed.y;
+                if (val === null || val === undefined) return `${context.dataset.label}: —`;
+                const sufixo = (unidade === "pib" || metrica === "res_pib") ? "%" : " bi";
+                const prefixo = (unidade === "usd" && metrica !== "res_pib") ? "US$ " : "";
+                return `${context.dataset.label}: ${prefixo}${val.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}${sufixo}`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: function (val) {
+                const sufixo = (unidade === "pib" || metrica === "res_pib") ? "%" : " bi";
+                return val.toLocaleString("pt-BR") + sufixo;
+              }
+            },
+            grid: { color: "#f1f5f9" }
+          },
+          x: {
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  // =============================================================================
   // Renderização de Tabelas no Estilo GT com Sticky Header
   // =============================================================================
   function renderizarTabela() {
@@ -333,7 +558,7 @@
         return;
       }
       container.innerHTML = gerarHtmlTabelaGrupo(dadosGrupo);
-    } else {
+    } else if (state.aba_ativa === "pais") {
       const nomesPaises = state.paises_selecionados.map(iso => {
         return state.dados.paises.find(p => p.iso === iso)?.pais || iso;
       }).join(", ");
@@ -348,6 +573,14 @@
         return;
       }
       container.innerHTML = gerarHtmlTabelaPais(dadosPais);
+    } else if (state.aba_ativa === "estoques") {
+      tituloEl.innerText = "Médias de Estoques, IIP e Liquidez por Grupo no Período";
+      const dadosEstoques = calcularTabelaEstoques();
+      if (!dadosEstoques.length) {
+        container.innerHTML = '<div class="state-message">Sem observações de estoques para a seleção.</div>';
+        return;
+      }
+      container.innerHTML = gerarHtmlTabelaEstoques(dadosEstoques);
     }
   }
 
@@ -393,24 +626,24 @@
     const porPeriodo = state.agrupar_por === "periodo";
     const stubhead = porPeriodo ? "Grupo" : "Período";
 
-    // Agrupamento por Periodo ou Grupo
-    const gruposMap = {};
+    // Preserva estritamente a ordem de inserção usando new Map()
+    const gruposMap = new Map();
     if (porPeriodo) {
       dados.sort((a, b) => a.ordemPeriodo - b.ordemPeriodo || a.ordemGrupo - b.ordemGrupo);
       for (const d of dados) {
-        if (!gruposMap[d.periodo]) gruposMap[d.periodo] = [];
-        gruposMap[d.periodo].push(d);
+        if (!gruposMap.has(d.periodo)) gruposMap.set(d.periodo, []);
+        gruposMap.get(d.periodo).push(d);
       }
     } else {
       dados.sort((a, b) => a.ordemGrupo - b.ordemGrupo || a.ordemPeriodo - b.ordemPeriodo);
       for (const d of dados) {
-        if (!gruposMap[d.grupo]) gruposMap[d.grupo] = [];
-        gruposMap[d.grupo].push(d);
+        if (!gruposMap.has(d.grupo)) gruposMap.set(d.grupo, []);
+        gruposMap.get(d.grupo).push(d);
       }
     }
 
     let tbodyHtml = "<tbody>";
-    for (const [nomeGrupo, itens] of Object.entries(gruposMap)) {
+    for (const [nomeGrupo, itens] of gruposMap.entries()) {
       tbodyHtml += `
         <tr class="group-header-row">
           <td colspan="10">${nomeGrupo}</td>
@@ -446,13 +679,12 @@
 
     if (isAnual) {
       if (isMulti) {
-        // Agrupa por País
-        const paisMap = {};
+        const paisMap = new Map();
         for (const d of dados) {
-          if (!paisMap[d.pais]) paisMap[d.pais] = [];
-          paisMap[d.pais].push(d);
+          if (!paisMap.has(d.pais)) paisMap.set(d.pais, []);
+          paisMap.get(d.pais).push(d);
         }
-        for (const [paisNome, itens] of Object.entries(paisMap)) {
+        for (const [paisNome, itens] of paisMap.entries()) {
           tbodyHtml += `<tr class="group-header-row"><td colspan="10">${paisNome}</td></tr>`;
           for (const item of itens) {
             tbodyHtml += `
@@ -464,7 +696,6 @@
           }
         }
       } else {
-        // País único: linhas são os Anos
         for (const item of dados) {
           tbodyHtml += `
             <tr>
@@ -476,14 +707,13 @@
       }
     } else {
       if (isMulti) {
-        // Agrupa por Período
-        const perMap = {};
+        const perMap = new Map();
         dados.sort((a, b) => a.ordemPeriodo - b.ordemPeriodo || a.pais.localeCompare(b.pais));
         for (const d of dados) {
-          if (!perMap[d.periodo]) perMap[d.periodo] = [];
-          perMap[d.periodo].push(d);
+          if (!perMap.has(d.periodo)) perMap.set(d.periodo, []);
+          perMap.get(d.periodo).push(d);
         }
-        for (const [perNome, itens] of Object.entries(perMap)) {
+        for (const [perNome, itens] of perMap.entries()) {
           tbodyHtml += `<tr class="group-header-row"><td colspan="10">${perNome}</td></tr>`;
           for (const item of itens) {
             tbodyHtml += `
@@ -495,7 +725,6 @@
           }
         }
       } else {
-        // País único por período
         dados.sort((a, b) => a.ordemPeriodo - b.ordemPeriodo);
         for (const item of dados) {
           tbodyHtml += `
@@ -518,59 +747,112 @@
     `;
   }
 
+  function gerarHtmlTabelaEstoques(dados) {
+    const perMap = new Map();
+    dados.sort((a, b) => a.ordemPeriodo - b.ordemPeriodo || a.ordemGrupo - b.ordemGrupo);
+    for (const d of dados) {
+      if (!perMap.has(d.periodo)) perMap.set(d.periodo, []);
+      perMap.get(d.periodo).push(d);
+    }
+
+    let tbodyHtml = "<tbody>";
+    for (const [perNome, itens] of perMap.entries()) {
+      tbodyHtml += `
+        <tr class="group-header-row">
+          <td colspan="6">${perNome}</td>
+        </tr>
+      `;
+      for (const item of itens) {
+        tbodyHtml += `
+          <tr>
+            <td class="text-left font-weight-medium">${item.grupo}</td>
+            <td class="text-right">${fmtBi(item.a_p)}</td>
+            <td class="text-right">${fmtBi(item.l_p)}</td>
+            <td class="text-right ${item.iip < 0 ? 'val-neg' : ''}">${fmtBi(item.iip)}</td>
+            <td class="text-right">${fmtBi(item.pib)}</td>
+            <td class="text-right font-weight-medium">${fmtPctBr(item.res_pib)}</td>
+          </tr>
+        `;
+      }
+    }
+    tbodyHtml += "</tbody>";
+
+    return `
+      <table class="gt-table">
+        <thead>
+          <tr>
+            <th class="stubhead">Grupo</th>
+            <th class="text-right">Ativos Externos (US$ bi)</th>
+            <th class="text-right">Passivos Externos (US$ bi)</th>
+            <th class="text-right">IIP Líquido (US$ bi)</th>
+            <th class="text-right">PIB (US$ bi)</th>
+            <th class="text-right">Reservas / PIB (%)</th>
+          </tr>
+        </thead>
+        ${tbodyHtml}
+      </table>
+    `;
+  }
+
   // =============================================================================
   // Exportação Excel
   // =============================================================================
   function exportarExcel() {
     const isGrupo = state.aba_ativa === "grupo";
-    const dados = isGrupo ? calcularTabelaGrupo() : calcularTabelaPais();
-    if (!dados.length) return;
+    const isPais = state.aba_ativa === "pais";
+    const isEstoques = state.aba_ativa === "estoques";
 
-    const linhasExport = [];
+    let dados, cabecalho, prefix;
 
-    // Cabeçalho colunas
-    const cabecalho = isGrupo
-      ? (state.agrupar_por === "periodo" ? ["Período", "Grupo"] : ["Grupo", "Período"])
-      : (state.modo_tempo_pais === "anual" ? ["País", "Ano"] : ["Período", "País"]);
+    if (isEstoques) {
+      dados = calcularTabelaEstoques();
+      if (!dados.length) return;
+      cabecalho = ["Período", "Grupo", "Ativos (US$ bi)", "Passivos (US$ bi)", "IIP Líquido (US$ bi)", "PIB (US$ bi)", "Reservas / PIB (%)"];
+      prefix = "Estoques_IIP_";
+    } else if (isGrupo) {
+      dados = calcularTabelaGrupo();
+      if (!dados.length) return;
+      cabecalho = state.agrupar_por === "periodo" ? ["Período", "Grupo"] : ["Grupo", "Período"];
+      cabecalho.push("Yield Ativo", "Yield Passivo", "Yield Dif", "KG Ativo", "KG Passivo", "KG Dif", "TR Ativo", "TR Passivo", "TR Dif");
+      prefix = state.agrupar_por === "periodo" ? "Periodo_Grupo_" : "Grupo_Periodo_";
+    } else {
+      dados = calcularTabelaPais();
+      if (!dados.length) return;
+      cabecalho = state.modo_tempo_pais === "anual" ? ["País", "Ano"] : ["Período", "País"];
+      cabecalho.push("Yield Ativo", "Yield Passivo", "Yield Dif", "KG Ativo", "KG Passivo", "KG Dif", "TR Ativo", "TR Passivo", "TR Dif");
+      prefix = state.modo_tempo_pais === "anual" ? "Pais_Anual_" : "Pais_Periodo_";
+    }
 
-    cabecalho.push(
-      "Yield Ativo", "Yield Passivo", "Yield Dif",
-      "KG Ativo", "KG Passivo", "KG Dif",
-      "TR Ativo", "TR Passivo", "TR Dif"
-    );
-
-    linhasExport.push(cabecalho);
+    const linhasExport = [cabecalho];
 
     for (const d of dados) {
-      const linha = isGrupo
-        ? (state.agrupar_por === "periodo" ? [d.periodo, d.grupo] : [d.grupo, d.periodo])
-        : (state.modo_tempo_pais === "anual" ? [d.pais, d.ano] : [d.periodo, d.pais]);
-
-      linha.push(
-        d.yield_A, d.yield_L, d.yield_dif,
-        d.kg_A, d.kg_L, d.kg_dif,
-        d.TR_A, d.TR_L, d.TR_dif
-      );
-      linhasExport.push(linha);
+      if (isEstoques) {
+        linhasExport.push([d.periodo, d.grupo, d.a_p, d.l_p, d.iip, d.pib, d.res_pib]);
+      } else if (isGrupo) {
+        const linha = state.agrupar_por === "periodo" ? [d.periodo, d.grupo] : [d.grupo, d.periodo];
+        linha.push(d.yield_A, d.yield_L, d.yield_dif, d.kg_A, d.kg_L, d.kg_dif, d.TR_A, d.TR_L, d.TR_dif);
+        linhasExport.push(linha);
+      } else {
+        const linha = state.modo_tempo_pais === "anual" ? [d.pais, d.ano] : [d.periodo, d.pais];
+        linha.push(d.yield_A, d.yield_L, d.yield_dif, d.kg_A, d.kg_L, d.kg_dif, d.TR_A, d.TR_L, d.TR_dif);
+        linhasExport.push(linha);
+      }
     }
+
+    const dataStr = new Date().toISOString().slice(0, 10).replace(/-/g, "_");
 
     if (window.XLSX) {
       const ws = XLSX.utils.aoa_to_sheet(linhasExport);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Retornos");
-      const prefix = isGrupo
-        ? (state.agrupar_por === "periodo" ? "Periodo_Grupo_" : "Grupo_Periodo_")
-        : (state.modo_tempo_pais === "anual" ? "Pais_Anual_" : "Pais_Periodo_");
-      const dataStr = new Date().toISOString().slice(0, 10).replace(/-/g, "_");
+      XLSX.utils.book_append_sheet(wb, ws, "Dados");
       XLSX.writeFile(wb, `${prefix}${dataStr}.xlsx`);
     } else {
-      // Fallback CSV
       const csvContent = "data:text/csv;charset=utf-8," +
         linhasExport.map(e => e.map(val => typeof val === "string" ? `"${val}"` : String(val).replace(".", ",")).join(";")).join("\n");
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Retornos_${state.aba_ativa}.csv`);
+      link.setAttribute("download", `${prefix}${dataStr}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -606,12 +888,55 @@
         </label>
       `).join("");
     }
+
+    // Controles da Aba Estoques e IIP
+    const selectGrupoEstoque = document.getElementById("select-grupo-estoque");
+    if (selectGrupoEstoque) {
+      selectGrupoEstoque.innerHTML = state.dados.grupos_ordem.map(g =>
+        `<option value="${g}" ${state.grupos_grafico_estoque.includes(g) ? "selected" : ""}>${g}</option>`
+      ).join("");
+    }
+    atualizarChipsGruposEstoque();
+
+    const selectPaisEstoque = document.getElementById("select-pais-estoque");
+    if (selectPaisEstoque) {
+      selectPaisEstoque.innerHTML = state.dados.paises.map(p =>
+        `<option value="${p.iso}" ${state.paises_grafico_estoque.includes(p.iso) ? "selected" : ""}>${p.pais} (${p.iso})</option>`
+      ).join("");
+    }
+    atualizarChipsPaisesEstoque();
   }
 
   function atualizarChipsPaises() {
     const chipsContainer = document.getElementById("chips-paises");
     if (!chipsContainer) return;
     chipsContainer.innerHTML = state.paises_selecionados.map(iso => {
+      const p = state.dados.paises.find(item => item.iso === iso);
+      const nome = p ? p.pais : iso;
+      return `
+        <span class="chip">
+          ${nome}
+          <span class="chip-remove" data-iso="${iso}">&times;</span>
+        </span>
+      `;
+    }).join("");
+  }
+
+  function atualizarChipsGruposEstoque() {
+    const chipsContainer = document.getElementById("chips-grupos-estoque");
+    if (!chipsContainer) return;
+    chipsContainer.innerHTML = state.grupos_grafico_estoque.map(g => `
+      <span class="chip">
+        ${g}
+        <span class="chip-remove" data-grupo="${g}">&times;</span>
+      </span>
+    `).join("");
+  }
+
+  function atualizarChipsPaisesEstoque() {
+    const chipsContainer = document.getElementById("chips-paises-estoque");
+    if (!chipsContainer) return;
+    chipsContainer.innerHTML = state.paises_grafico_estoque.map(iso => {
       const p = state.dados.paises.find(item => item.iso === iso);
       const nome = p ? p.pais : iso;
       return `
@@ -633,7 +958,7 @@
       });
     }
 
-    // Abas de navegação (Por Grupo / Por País)
+    // Abas de navegação (Por Grupo / Por País / Estoques e IIP)
     document.querySelectorAll(".tab-btn").forEach(btn => {
       btn.addEventListener("click", () => {
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -641,8 +966,12 @@
         state.aba_ativa = btn.dataset.tab;
 
         // Alterna visibilidade dos painéis condicionais na sidebar
+        const f7Box = document.getElementById("f7-container");
+        if (f7Box) f7Box.style.display = state.aba_ativa === "estoques" ? "none" : "block";
+
         document.getElementById("painel-grupo-sidebar").style.display = state.aba_ativa === "grupo" ? "block" : "none";
         document.getElementById("painel-pais-sidebar").style.display = state.aba_ativa === "pais" ? "block" : "none";
+        document.getElementById("painel-estoques-sidebar").style.display = state.aba_ativa === "estoques" ? "block" : "none";
 
         renderizar();
       });
@@ -685,7 +1014,6 @@
           const iso = e.target.dataset.iso;
           if (state.paises_selecionados.length > 1) {
             state.paises_selecionados = state.paises_selecionados.filter(i => i !== iso);
-            // Atualiza select
             const opt = selectPais.querySelector(`option[value="${iso}"]`);
             if (opt) opt.selected = false;
             atualizarChipsPaises();
@@ -745,9 +1073,97 @@
     if (btnExport) {
       btnExport.addEventListener("click", exportarExcel);
     }
+
+    // =========================================================================
+    // Eventos Específicos da Aba Estoques e IIP
+    // =========================================================================
+    document.querySelectorAll("input[name='visao_grafico_estoque']").forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        state.visao_grafico_estoque = e.target.value;
+        const blocoGrupo = document.getElementById("bloco-select-grupo-estoque");
+        const blocoPais = document.getElementById("bloco-select-pais-estoque");
+        if (blocoGrupo && blocoPais) {
+          blocoGrupo.style.display = state.visao_grafico_estoque === "grupo" ? "block" : "none";
+          blocoPais.style.display = state.visao_grafico_estoque === "pais" ? "block" : "none";
+        }
+        renderizar();
+      });
+    });
+
+    const selectGrupoEstoque = document.getElementById("select-grupo-estoque");
+    if (selectGrupoEstoque) {
+      selectGrupoEstoque.addEventListener("change", (e) => {
+        const sel = Array.from(e.target.selectedOptions).map(o => o.value);
+        if (sel.length) {
+          state.grupos_grafico_estoque = sel;
+          atualizarChipsGruposEstoque();
+          renderizarGraficoEstoques();
+        }
+      });
+    }
+
+    const chipsGruposEstoque = document.getElementById("chips-grupos-estoque");
+    if (chipsGruposEstoque) {
+      chipsGruposEstoque.addEventListener("click", (e) => {
+        if (e.target.classList.contains("chip-remove")) {
+          const g = e.target.dataset.grupo;
+          if (state.grupos_grafico_estoque.length > 1) {
+            state.grupos_grafico_estoque = state.grupos_grafico_estoque.filter(item => item !== g);
+            const opt = selectGrupoEstoque.querySelector(`option[value="${g}"]`);
+            if (opt) opt.selected = false;
+            atualizarChipsGruposEstoque();
+            renderizarGraficoEstoques();
+          }
+        }
+      });
+    }
+
+    const selectPaisEstoque = document.getElementById("select-pais-estoque");
+    if (selectPaisEstoque) {
+      selectPaisEstoque.addEventListener("change", (e) => {
+        const sel = Array.from(e.target.selectedOptions).map(o => o.value);
+        if (sel.length) {
+          state.paises_grafico_estoque = sel;
+          atualizarChipsPaisesEstoque();
+          renderizarGraficoEstoques();
+        }
+      });
+    }
+
+    const chipsPaisesEstoque = document.getElementById("chips-paises-estoque");
+    if (chipsPaisesEstoque) {
+      chipsPaisesEstoque.addEventListener("click", (e) => {
+        if (e.target.classList.contains("chip-remove")) {
+          const iso = e.target.dataset.iso;
+          if (state.paises_grafico_estoque.length > 1) {
+            state.paises_grafico_estoque = state.paises_grafico_estoque.filter(i => i !== iso);
+            const opt = selectPaisEstoque.querySelector(`option[value="${iso}"]`);
+            if (opt) opt.selected = false;
+            atualizarChipsPaisesEstoque();
+            renderizarGraficoEstoques();
+          }
+        }
+      });
+    }
+
+    const selectMetricaEstoque = document.getElementById("select-metrica-estoque");
+    if (selectMetricaEstoque) {
+      selectMetricaEstoque.addEventListener("change", (e) => {
+        state.metrica_grafico_estoque = e.target.value;
+        renderizarGraficoEstoques();
+      });
+    }
+
+    document.querySelectorAll("input[name='unidade_estoque']").forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        state.unidade_estoque = e.target.value;
+        renderizarGraficoEstoques();
+      });
+    });
   }
 
   function renderizar() {
+    renderizarGraficoEstoques();
     renderizarTabela();
   }
 
