@@ -16,14 +16,9 @@ Aplicação web estática e interativa para exploração, visualização e repli
 
 ### 2. Estoques e IIP (Posição de Investimento Internacional)
 
-- **Gráficos Interativos de Séries Históricas (2000–2025)**: Curvas temporais dinâmicas via Chart.js comparando médias de grupos analíticos ou países individuais.
-- **Métricas Disponíveis**:
-  - Posição Internacional de Investimento Líquida ($A_P - L_P$);
-  - Ativos Externos Totais ($A_P$);
-  - Passivos Externos Totais ($L_P$);
-  - Reservas Internacionais Totais (FMI IL `TRGMV_REVS`);
-  - Reservas Internacionais / PIB (%).
-- **Unidades Alternáveis**: Valores em US$ Bilhões ou como proporção do PIB nominal (% do PIB).
+- **Gráficos Interativos Sincronizados (2000–2025)**:
+  - **Gráfico Superior (Estoques)**: Curvas temporais dinâmicas comparando médias de grupos analíticos ou países individuais em US$ Bilhões ou % do PIB (Posição Líquida IIP, Ativos $A_P$, Passivos $L_P$ e Reservas Totais `TRGMV_REVS`).
+  - **Gráfico Inferior (Diferenciais de Retorno)**: Curvas anuais dos diferenciais de retorno ($r^A - r^L$) para as mesmas entidades selecionadas, permitindo alternar entre Total (TR Dif), Rendimento (Yield Dif) e Ganho de Capital (KG Dif), integrado com o toggle F7.
 - **Tabela Consolidada por Período**: Médias dos agregados externos para cada período customizado selecionado na barra lateral.
 
 ### 3. Liquidez Internacional

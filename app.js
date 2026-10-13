@@ -24,9 +24,11 @@
     visao_grafico_estoque: "grupo", // "grupo" | "pais"
     grupos_grafico_estoque: ["USA", "AEs", "Emerging Markets"],
     paises_grafico_estoque: ["USA", "BRA", "DEU"],
-    metrica_grafico_estoque: "iip", // "iip" | "a_p" | "l_p" | "res" | "res_pib"
+    metrica_grafico_estoque: "iip", // "iip" | "a_p" | "l_p" | "res"
     unidade_estoque: "usd", // "usd" | "pib"
+    diferencial_estoque: "tr_dif", // "tr_dif" | "yield_dif" | "kg_dif"
     chartInstance: null,
+    chartDiferenciaisInstance: null,
 
     // Controles da Aba Liquidez Internacional
     modo_tabela_liquidez: "ciclos", // "ciclos" | "periodos"
@@ -435,18 +437,16 @@
       else if (metrica === "l_p") campoChave = "passivo_pib";
       else if (metrica === "iip") campoChave = "iip_pib";
       else if (metrica === "res") campoChave = "res_pib";
-      else if (metrica === "res_pib") campoChave = "res_pib";
     }
 
     const labelsMetrica = {
       iip: "Posição Internacional de Investimento Líquida (IIP)",
       a_p: "Estoque de Ativos Externos (A_P)",
       l_p: "Estoque de Passivos Externos (L_P)",
-      res: "Reservas Totais (TRGMV_REVS)",
-      res_pib: "Reservas Totais sobre o PIB (%)"
+      res: "Reservas Totais (TRGMV_REVS)"
     };
 
-    const sulfixoUnidade = (unidade === "pib" || metrica === "res_pib") ? "% do PIB" : "US$ Bilhões";
+    const sulfixoUnidade = unidade === "pib" ? "% do PIB" : "US$ Bilhões";
     const tituloGrafico = `${labelsMetrica[metrica]} — ${sulfixoUnidade}`;
     const tituloEl = document.getElementById("chart-estoques-titulo");
     if (tituloEl) tituloEl.innerText = tituloGrafico;
@@ -525,8 +525,8 @@
               label: function (context) {
                 const val = context.parsed.y;
                 if (val === null || val === undefined) return `${context.dataset.label}: —`;
-                const sufixo = (unidade === "pib" || metrica === "res_pib") ? "%" : " bi";
-                const prefixo = (unidade === "usd" && metrica !== "res_pib") ? "US$ " : "";
+                const sufixo = unidade === "pib" ? "%" : " bi";
+                const prefixo = unidade === "usd" ? "US$ " : "";
                 return `${context.dataset.label}: ${prefixo}${val.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 })}${sufixo}`;
               }
             }
@@ -536,11 +536,167 @@
           y: {
             ticks: {
               callback: function (val) {
-                const sufixo = (unidade === "pib" || metrica === "res_pib") ? "%" : " bi";
+                const sufixo = unidade === "pib" ? "%" : " bi";
                 return val.toLocaleString("pt-BR") + sufixo;
               }
             },
             grid: { color: "#f1f5f9" }
+          },
+          x: {
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  // =============================================================================
+  // Renderização do Gráfico Inferior de Diferenciais (Aba Estoques)
+  // =============================================================================
+  function renderizarGraficoDiferenciaisEstoques() {
+    const cardEl = document.getElementById("card-grafico-estoques");
+    if (state.aba_ativa !== "estoques") return;
+
+    const canvas = document.getElementById("chart-diferenciais-canvas");
+    if (!canvas || !window.Chart) return;
+
+    const anos = Array.from({ length: 25 }, (_, i) => 2000 + i);
+    const metricaDif = state.diferencial_estoque || "tr_dif";
+    const visao = state.visao_grafico_estoque;
+    const obsTotal = state.dados.obs || [];
+
+    const labelsDif = {
+      tr_dif: "Diferencial de Retorno Total (TR Dif = TR_A - TR_L)",
+      yield_dif: "Diferencial de Rendimento (Yield Dif = Yield_A - Yield_L)",
+      kg_dif: "Diferencial de Ganho de Capital (KG Dif = KG_A - KG_L)"
+    };
+
+    const tituloEl = document.getElementById("chart-diferenciais-titulo");
+    if (tituloEl) {
+      const f7Tag = state.usar_f7 ? " (Com F7)" : " (Sem F7)";
+      tituloEl.innerText = `${labelsDif[metricaDif]}${f7Tag}`;
+    }
+
+    // Mapa de países para grupos
+    const paisGruposMap = {};
+    for (const g of state.dados.grupos_ordem) {
+      let listaPaises = state.grupos_paises[g] || [];
+      if (typeof listaPaises === "string") listaPaises = [listaPaises];
+      for (const iso of listaPaises) {
+        if (!paisGruposMap[iso]) paisGruposMap[iso] = [];
+        paisGruposMap[iso].push(g);
+      }
+    }
+    for (const o of obsTotal) {
+      if (o.tipo && (!paisGruposMap[o.iso] || !paisGruposMap[o.iso].includes(o.tipo))) {
+        if (!paisGruposMap[o.iso]) paisGruposMap[o.iso] = [];
+        paisGruposMap[o.iso].push(o.tipo);
+      }
+    }
+
+    const datasets = [];
+
+    if (visao === "grupo") {
+      const gruposSel = state.grupos_grafico_estoque;
+      gruposSel.forEach(g => {
+        const cor = CORES_PALETA[g] || "#3b82f6";
+        const dadosPontos = anos.map(ano => {
+          const obsAno = obsTotal.filter(o => {
+            const grps = paisGruposMap[o.iso];
+            return o.ano === ano && grps && grps.includes(g);
+          });
+          if (!obsAno.length) return null;
+          const valores = obsAno.map(o => extrairMetricas(o, state.usar_f7)[metricaDif]).filter(v => v !== null && !isNaN(v));
+          if (!valores.length) return null;
+          return calcMedia(valores) * 100; // Multiplica por 100 para percentual
+        });
+
+        datasets.push({
+          label: g,
+          data: dadosPontos,
+          borderColor: cor,
+          backgroundColor: cor + "33",
+          borderWidth: 2.5,
+          pointRadius: 2.5,
+          pointHoverRadius: 5,
+          tension: 0.25
+        });
+      });
+    } else {
+      const paisesSel = state.paises_grafico_estoque;
+      paisesSel.forEach((iso, idx) => {
+        const cor = CORES_PAISES[idx % CORES_PAISES.length];
+        const nomePais = state.dados.paises.find(p => p.iso === iso)?.pais || iso;
+        const dadosPontos = anos.map(ano => {
+          const obs = obsTotal.find(o => o.ano === ano && o.iso === iso);
+          if (!obs) return null;
+          const metricas = extrairMetricas(obs, state.usar_f7);
+          const val = metricas[metricaDif];
+          return (val !== null && val !== undefined && !isNaN(val)) ? val * 100 : null;
+        });
+
+        datasets.push({
+          label: nomePais,
+          data: dadosPontos,
+          borderColor: cor,
+          backgroundColor: cor + "33",
+          borderWidth: 2.5,
+          pointRadius: 2.5,
+          pointHoverRadius: 5,
+          tension: 0.25
+        });
+      });
+    }
+
+    if (state.chartDiferenciaisInstance) {
+      state.chartDiferenciaisInstance.destroy();
+    }
+
+    state.chartDiferenciaisInstance = new Chart(canvas, {
+      type: "line",
+      data: {
+        labels: anos.map(String),
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: "index",
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { font: { size: 12, family: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto" } }
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                const val = context.parsed.y;
+                if (val === null || val === undefined) return `${context.dataset.label}: —`;
+                const sinal = val > 0 ? "+" : "";
+                return `${context.dataset.label}: ${sinal}${val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+              }
+            }
+          }
+        },
+        scales: {
+          y: {
+            ticks: {
+              callback: function (val) {
+                const sinal = val > 0 ? "+" : "";
+                return `${sinal}${val.toLocaleString("pt-BR")}%`;
+              }
+            },
+            grid: {
+              color: function (ctx) {
+                return ctx.tick.value === 0 ? "#1e293b" : "#f1f5f9";
+              },
+              lineWidth: function (ctx) {
+                return ctx.tick.value === 0 ? 1.5 : 1;
+              }
+            }
           },
           x: {
             grid: { display: false }
@@ -1279,7 +1435,7 @@
 
         // Alterna visibilidade dos painéis condicionais na sidebar
         const f7Box = document.getElementById("f7-container");
-        if (f7Box) f7Box.style.display = (state.aba_ativa === "grupo" || state.aba_ativa === "pais") ? "block" : "none";
+        if (f7Box) f7Box.style.display = (state.aba_ativa === "grupo" || state.aba_ativa === "pais" || state.aba_ativa === "estoques") ? "block" : "none";
 
         document.getElementById("painel-grupo-sidebar").style.display = state.aba_ativa === "grupo" ? "block" : "none";
         document.getElementById("painel-pais-sidebar").style.display = state.aba_ativa === "pais" ? "block" : "none";
@@ -1419,6 +1575,7 @@
           state.grupos_grafico_estoque = sel;
           atualizarChipsGruposEstoque();
           renderizarGraficoEstoques();
+          renderizarGraficoDiferenciaisEstoques();
         }
       });
     }
@@ -1434,6 +1591,7 @@
             if (opt) opt.selected = false;
             atualizarChipsGruposEstoque();
             renderizarGraficoEstoques();
+            renderizarGraficoDiferenciaisEstoques();
           }
         }
       });
@@ -1447,6 +1605,7 @@
           state.paises_grafico_estoque = sel;
           atualizarChipsPaisesEstoque();
           renderizarGraficoEstoques();
+          renderizarGraficoDiferenciaisEstoques();
         }
       });
     }
@@ -1462,6 +1621,7 @@
             if (opt) opt.selected = false;
             atualizarChipsPaisesEstoque();
             renderizarGraficoEstoques();
+            renderizarGraficoDiferenciaisEstoques();
           }
         }
       });
@@ -1480,6 +1640,22 @@
         state.unidade_estoque = e.target.value;
         renderizarGraficoEstoques();
       });
+    });
+
+    // Seletor de Diferencial no Gráfico Inferior de Estoques (com sincronização)
+    function sincronizarDiferencialEstoque(val) {
+      state.diferencial_estoque = val;
+      document.querySelectorAll("input[name='diferencial_estoque']").forEach(r => r.checked = (r.value === val));
+      document.querySelectorAll("input[name='diferencial_estoque_top']").forEach(r => r.checked = (r.value === val));
+      renderizarGraficoDiferenciaisEstoques();
+    }
+
+    document.querySelectorAll("input[name='diferencial_estoque']").forEach(radio => {
+      radio.addEventListener("change", (e) => sincronizarDiferencialEstoque(e.target.value));
+    });
+
+    document.querySelectorAll("input[name='diferencial_estoque_top']").forEach(radio => {
+      radio.addEventListener("change", (e) => sincronizarDiferencialEstoque(e.target.value));
     });
 
     // Modo da tabela de liquidez
@@ -1522,6 +1698,7 @@
 
     if (isEstoques) {
       renderizarGraficoEstoques();
+      renderizarGraficoDiferenciaisEstoques();
     } else if (isLiquidez) {
       renderizarFacetLiquidez();
     } else if (isClassificacao) {

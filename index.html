@@ -95,22 +95,34 @@
           <div id="chips-paises-estoque" class="chips-container"></div>
         </div>
 
-        <span class="control-label">Métrica no Gráfico:</span>
+        <span class="control-label">Métrica no Gráfico Superior (Estoques):</span>
         <select id="select-metrica-estoque" class="form-select" style="margin-bottom: 0.75rem;">
           <option value="iip">Posição Líquida (IIP)</option>
           <option value="a_p">Ativos Externos (A_P)</option>
           <option value="l_p">Passivos Externos (L_P)</option>
           <option value="res">Reservas Totais (TRGMV_REVS)</option>
-          <option value="res_pib">Reservas / PIB (%)</option>
         </select>
 
-        <span class="control-label">Unidade:</span>
-        <div class="radio-group">
+        <span class="control-label">Unidade (Estoques):</span>
+        <div class="radio-group" style="margin-bottom: 0.75rem;">
           <label class="radio-label">
             <input type="radio" name="unidade_estoque" value="usd" checked> US$ Bilhões
           </label>
           <label class="radio-label">
             <input type="radio" name="unidade_estoque" value="pib"> % do PIB
+          </label>
+        </div>
+
+        <span class="control-label">Diferencial no Gráfico Inferior:</span>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="diferencial_estoque" value="tr_dif" checked> Total (TR Dif)
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="diferencial_estoque" value="yield_dif"> Rendimento (Yield Dif)
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="diferencial_estoque" value="kg_dif"> Ganho (KG Dif)
           </label>
         </div>
       </div>
@@ -204,11 +216,36 @@
 
       <!-- Card do Gráfico (Aba Estoques e IIP) -->
       <div id="card-grafico-estoques" class="chart-card" style="display: none;">
+        <!-- Gráfico Superior: Estoques e IIP -->
         <div class="chart-header">
           <h3 id="chart-estoques-titulo" class="chart-title">Evolução Anual dos Estoques</h3>
         </div>
         <div class="chart-wrapper">
           <canvas id="chart-estoques-canvas"></canvas>
+        </div>
+
+        <!-- Gráfico Inferior: Diferenciais de Retorno -->
+        <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color);">
+          <div class="chart-header">
+            <div>
+              <h3 id="chart-diferenciais-titulo" class="chart-title">Diferencial de Retorno Anual (r<sup>A</sup> - r<sup>L</sup>)</h3>
+              <p class="chart-subtitle">Taxa de retorno diferencial para as mesmas entidades selecionadas acima</p>
+            </div>
+            <div class="radio-group" style="font-size: 0.8rem;">
+              <label class="radio-label">
+                <input type="radio" name="diferencial_estoque_top" value="tr_dif" checked> Total (TR Dif)
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="diferencial_estoque_top" value="yield_dif"> Yield Dif
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="diferencial_estoque_top" value="kg_dif"> KG Dif
+              </label>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="chart-diferenciais-canvas"></canvas>
+          </div>
         </div>
       </div>
 
