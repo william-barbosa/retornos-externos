@@ -181,7 +181,8 @@
       kg_dif: kg_A - kg_L,
       TR_A: TR_A,
       TR_L: TR_L,
-      TR_dif: TR_A - TR_L
+      TR_dif: TR_A - TR_L,
+      tr_dif: TR_A - TR_L
     };
   }
 
@@ -596,6 +597,8 @@
 
     const datasets = [];
 
+    const campoDif = (metricaDif === "tr_dif" || metricaDif === "TR_dif") ? "TR_dif" : metricaDif;
+
     if (visao === "grupo") {
       const gruposSel = state.grupos_grafico_estoque;
       gruposSel.forEach(g => {
@@ -606,7 +609,10 @@
             return o.ano === ano && grps && grps.includes(g);
           });
           if (!obsAno.length) return null;
-          const valores = obsAno.map(o => extrairMetricas(o, state.usar_f7)[metricaDif]).filter(v => v !== null && !isNaN(v));
+          const valores = obsAno.map(o => {
+            const m = extrairMetricas(o, state.usar_f7);
+            return m[campoDif] !== undefined ? m[campoDif] : m[metricaDif];
+          }).filter(v => v !== null && !isNaN(v));
           if (!valores.length) return null;
           return calcMedia(valores) * 100; // Multiplica por 100 para percentual
         });
@@ -631,7 +637,7 @@
           const obs = obsTotal.find(o => o.ano === ano && o.iso === iso);
           if (!obs) return null;
           const metricas = extrairMetricas(obs, state.usar_f7);
-          const val = metricas[metricaDif];
+          const val = metricas[campoDif] !== undefined ? metricas[campoDif] : metricas[metricaDif];
           return (val !== null && val !== undefined && !isNaN(val)) ? val * 100 : null;
         });
 
