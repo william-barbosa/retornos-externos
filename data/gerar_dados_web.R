@@ -52,11 +52,13 @@ if (!file.exists(estoques_rds)) {
 }
 
 estoques_raw <- readRDS(estoques_rds) %>%
+  left_join(distinct(d_limpo, iso, novo_tipo = tipo), by = "iso") %>%
+  mutate(tipo = coalesce(novo_tipo, Tipo, "Outros")) %>%
   select(
     ano,
     iso,
     pais = País,
-    tipo = Tipo,
+    tipo,
     a_p = a_p_bi,
     l_p = l_p_bi,
     iip = iip_bi,
@@ -76,7 +78,39 @@ if (!file.exists(il_path)) {
 }
 IL <- readRDS(il_path)
 
-# Definição dos grupos estruturais
+# Definição dos grupos estruturais (TABLE A4.1.2 - 2025 refinada estruturalmente)
+USA <- tibble(País = "United States", Tipo = "USA")
+
+AEs_g7 <- tibble(
+  País = c("Canada", "France", "Germany", "Italy", "Japan", "United Kingdom"),
+  Tipo = "AEs (G7 ex-USA)"
+)
+
+AEs_centrais <- tibble(
+  País = c(
+    "Australia", "Austria", "Belgium", "Denmark", "Finland", "Iceland", "Israel",
+    "Korea", "Netherlands, The", "New Zealand", "Norway", "Singapore",
+    "Sweden", "Switzerland", "Taiwan Province of China"
+  ),
+  Tipo = "AEs Centrais"
+)
+
+Periferia_europeia <- tibble(
+  País = c(
+    "Croatia", "Czech Republic", "Estonia", "Greece", "Latvia", "Lithuania",
+    "Portugal", "Slovak Republic", "Slovenia", "Spain"
+  ),
+  Tipo = "Periferia Europeia"
+)
+
+Centros_financeiros <- tibble(
+  País = c(
+    "Andorra", "Cyprus", "Hong Kong SAR", "Ireland", "Luxembourg",
+    "Macao SAR", "Malta", "Puerto Rico", "San Marino"
+  ),
+  Tipo = "Centros Financeiros"
+)
+
 Frontier_markets <- tibble(
   País = c("Mongolia", "Papua New Guinea", "Viet Nam", "Armenia", "Azerbaijan", "Georgia", "Kazakhstan",
     "Kyrgyz Republic", "Montenegro", "North Macedonia", "Serbia", "Tajikistan", "Ukraine", "Uzbekistan",
@@ -110,34 +144,17 @@ Other_developing_economies <- tibble(
   Tipo = "Other Developing"
 )
 
-g7_ex_usa <- c("Canada", "France", "Germany", "Italy", "Japan", "United Kingdom")
-AEs_todos <- c(
-  "Andorra", "Australia", "Austria", "Belgium", "Canada", "Cyprus", "Czech Republic", "Denmark",
-  "Estonia", "Finland", "France", "Germany", "Greece", "Hong Kong SAR", "Iceland", "Ireland", "Israel",
-  "Italy", "Japan", "Korea", "Luxembourg", "Macao SAR", "Malta", "Netherlands, The",
-  "New Zealand", "Norway", "Portugal", "Puerto Rico", "San Marino", "Singapore", "Slovak Republic",
-  "Slovenia", "Spain", "Sweden", "Switzerland", "Taiwan Province of China", "United Kingdom",
-  "Latvia", "Lithuania", "Croatia"
-)
-
-AEs <- tibble(País = g7_ex_usa, Tipo = "AEs")
-AEs_perifericos <- tibble(País = setdiff(AEs_todos, g7_ex_usa), Tipo = "AEs Periféricos")
-USA <- tibble(País = "United States", Tipo = "USA")
-
 # Todos os países mapeados
 todos_paises_grupos <- bind_rows(
-  USA, AEs, AEs_perifericos, Emerging_markets, Frontier_markets, Other_developing_economies
+  USA, AEs_g7, AEs_centrais, Periferia_europeia, Centros_financeiros,
+  Emerging_markets, Frontier_markets, Other_developing_economies
 ) %>%
-  mutate(iso = countrycode(País, origin = "country.name", destination = "iso3c")) %>%
-  mutate(iso = case_when(
-    País == "Kosovo" ~ "XKX",
-    País == "Taiwan Province of China" ~ "TWN",
-    TRUE ~ iso
-  ))
+  mutate(iso = suppressWarnings(countrycode(País, origin = "country.name", destination = "iso3c", custom_match = c("Kosovo" = "XKX", "Taiwan Province of China" = "TWN")))) %>%
+  distinct()
 
 # Base de reservas e variação
 paises_periferia <- bind_rows(Frontier_markets, Emerging_markets, Other_developing_economies) %>%
-  mutate(iso3c = countrycode(País, origin = "country.name", destination = "iso3c"))
+  mutate(iso3c = suppressWarnings(countrycode(País, origin = "country.name", destination = "iso3c", custom_match = c("Kosovo" = "XKX"))))
 
 df_res <- IL %>%
   select(iso3c = COUNTRY, year = TIME_PERIOD, reserves = OBS_VALUE) %>%
@@ -228,7 +245,11 @@ liquidez_obs <- df_res %>%
   )
 
 # 4. Metadados de países e grupos
-ORDEM_GRUPOS <- c("USA", "AEs", "AEs Periféricos", "Emerging Markets", "Frontier Markets", "Other Developing", "Outros")
+ORDEM_GRUPOS <- c(
+  "USA", "AEs (G7 ex-USA)", "AEs Centrais", "Periferia Europeia",
+  "Centros Financeiros", "Emerging Markets", "Frontier Markets",
+  "Other Developing", "Outros"
+)
 
 paises_meta <- d_limpo %>%
   distinct(iso, pais, tipo) %>%

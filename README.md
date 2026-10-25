@@ -33,13 +33,15 @@ Aplicação web estática e interativa para exploração, visualização e repli
 
 ### 5. Segmentação Estrutural de Países
 
-- `USA`: Estados Unidos (polo emissor da moeda de reserva global);
-- `AEs`: G7 ex-EUA (*Canadá, França, Alemanha, Itália, Japão, Reino Unido*);
-- `AEs Periféricos`: Demais economias avançadas (*Austrália, Espanha, Holanda, Suíça, Coreia do Sul, etc.*);
-- `Emerging Markets`: Economias emergentes (*Brasil, México, China, África do Sul, etc.*);
-- `Frontier Markets`: Mercados de fronteira;
+- `USA`: Estados Unidos (polo hegemônico emissor da moeda de reserva global);
+- `AEs (G7 ex-USA)`: G7 sem Estados Unidos (*Canadá, França, Alemanha, Itália, Japão, Reino Unido*);
+- `AEs Centrais`: Economias avançadas maduras com moedas fortes e credoras líquidas (*Holanda, Suíça, Austrália, Suécia, Noruega, Dinamarca, Coreia do Sul, Cingapura, etc.*);
+- `Periferia Europeia`: Leste Europeu (transição da UE) e Sul da Europa (*Rep. Tcheca, Eslováquia, Eslovênia, Bálticos, Croácia, Grécia, Portugal, Espanha*);
+- `Centros Financeiros`: Enclaves offshore e centros de arbitragem fiscal / *Phantom FDI* (*Luxemburgo, Irlanda, Chipre, Malta, Hong Kong, etc.*);
+- `Emerging Markets`: Economias emergentes (*Brasil, México, China, Índia, África do Sul, etc.*);
+- `Frontier Markets`: Mercados de fronteira (*Argentina, Vietnã, Nigéria, etc.*);
 - `Other Developing`: Demais economias em desenvolvimento;
-- `Outros`: Economias com regimes ou dados particulares.
+- `Outros`: Economias com regimes ou dados atípicos / outliers.
 
 ---
 

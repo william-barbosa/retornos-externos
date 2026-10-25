@@ -22,7 +22,7 @@
 
     // Controles da Aba Estoques e IIP
     visao_grafico_estoque: "grupo", // "grupo" | "pais"
-    grupos_grafico_estoque: ["USA", "AEs", "Emerging Markets"],
+    grupos_grafico_estoque: ["USA", "AEs (G7 ex-USA)", "AEs Centrais", "Emerging Markets"],
     paises_grafico_estoque: ["USA", "BRA", "DEU"],
     metrica_grafico_estoque: "iip", // "iip" | "a_p" | "l_p" | "res"
     unidade_estoque: "usd", // "usd" | "pib"
@@ -42,8 +42,10 @@
 
   const CORES_PALETA = {
     "USA": "#1d4ed8",
-    "AEs": "#0284c7",
-    "AEs Periféricos": "#0d9488",
+    "AEs (G7 ex-USA)": "#0284c7",
+    "AEs Centrais": "#0ea5e9",
+    "Periferia Europeia": "#0d9488",
+    "Centros Financeiros": "#8b5cf6",
     "Emerging Markets": "#059669",
     "Frontier Markets": "#d97706",
     "Other Developing": "#b45309",
