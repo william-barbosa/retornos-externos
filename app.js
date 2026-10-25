@@ -852,10 +852,10 @@
         n_obs: item.n_obs,
         pct_queimando: item.pct_queimando,
         pct_severo: item.pct_severo,
-        crescimento_mediano: item.crescimento_mediano
+        crescimento_medio: item.crescimento_medio !== undefined ? item.crescimento_medio : item.crescimento_mediano
       }));
     } else {
-      // Períodos customizados da barra lateral
+      // Períodos customizados da barra lateral: média das médias anuais sincronizadas
       const periodos = state.periodos_parsed;
       const obsLiquidez = state.dados.liquidez_obs || [];
       const gruposPeriferia = ["Emerging Markets", "Frontier Markets", "Other Developing"];
@@ -870,7 +870,15 @@
           const n_obs = obsGrupo.length;
           const n_queimando = obsGrupo.filter(o => o.gasta).length;
           const n_severo = obsGrupo.filter(o => o.severo).length;
-          const valsVar = obsGrupo.map(o => o.var_pct);
+
+          // Média sincronizada: calcula a média anual de cada ano e depois a média do período
+          const anosNoPer = [...new Set(obsGrupo.map(o => o.ano))];
+          const mediasPorAno = anosNoPer.map(ano => {
+            const obsAno = obsGrupo.filter(o => o.ano === ano);
+            const vals = obsAno.map(o => o.var_pct).filter(v => v !== null && !isNaN(v));
+            return calcMedia(vals);
+          }).filter(m => m !== null);
+          const crescMedio = calcMedia(mediasPorAno);
 
           resultados.push({
             ciclo: per.rotulo,
@@ -879,7 +887,7 @@
             n_obs: n_obs,
             pct_queimando: Math.round((n_queimando / n_obs) * 1000) / 10,
             pct_severo: Math.round((n_severo / n_obs) * 1000) / 10,
-            crescimento_mediano: Math.round((calcMediana(valsVar) || 0) * 10) / 10
+            crescimento_medio: Math.round((crescMedio || 0) * 10) / 10
           });
         });
       });
@@ -915,7 +923,7 @@
             <td class="text-right">${item.n_obs}</td>
             <td class="text-right ${queimaDestaque}">${item.pct_queimando.toFixed(1).replace(".", ",")}%</td>
             <td class="text-right ${severoDestaque}">${item.pct_severo.toFixed(1).replace(".", ",")}%</td>
-            <td class="text-right ${item.crescimento_mediano < 0 ? 'val-neg' : ''}">${item.crescimento_mediano.toFixed(1).replace(".", ",")}%</td>
+            <td class="text-right ${item.crescimento_medio < 0 ? 'val-neg' : ''}">${item.crescimento_medio.toFixed(1).replace(".", ",")}%</td>
           </tr>
         `;
       }
@@ -930,7 +938,7 @@
             <th class="text-right">Obs (N)</th>
             <th class="text-right">% com Perda de Reservas</th>
             <th class="text-right">% com Queda Severa (&gt;10%)</th>
-            <th class="text-right">Crescimento Mediano Anual (%)</th>
+            <th class="text-right">Crescimento Médio Anual (%)</th>
           </tr>
         </thead>
         ${tbodyHtml}
@@ -1276,7 +1284,7 @@
     if (isLiquidez) {
       dados = calcularTabelaLiquidez();
       if (!dados.length) return;
-      cabecalho = [state.modo_tabela_liquidez === "ciclos" ? "Ciclo de Liquidez" : "Período", "Grupo", "Obs (N)", "% Perda de Reservas", "% Queda Severa (>10%)", "Crescimento Mediano Anual (%)"];
+      cabecalho = [state.modo_tabela_liquidez === "ciclos" ? "Ciclo de Liquidez" : "Período", "Grupo", "Obs (N)", "% Perda de Reservas", "% Queda Severa (>10%)", "Crescimento Médio Anual (%)"];
       prefix = "Liquidez_Internacional_";
     } else if (isEstoques) {
       dados = calcularTabelaEstoques();
@@ -1301,7 +1309,7 @@
 
     for (const d of dados) {
       if (isLiquidez) {
-        linhasExport.push([d.ciclo, d.tipo, d.n_obs, d.pct_queimando, d.pct_severo, d.crescimento_mediano]);
+        linhasExport.push([d.ciclo, d.tipo, d.n_obs, d.pct_queimando, d.pct_severo, d.crescimento_medio]);
       } else if (isEstoques) {
         linhasExport.push([d.periodo, d.grupo, d.a_p, d.l_p, d.iip, d.pib, d.res_pib]);
       } else if (isGrupo) {

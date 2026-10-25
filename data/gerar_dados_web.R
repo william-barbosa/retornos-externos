@@ -213,15 +213,26 @@ facet_total_periferia <- df_res %>%
 liquidez_facet <- bind_rows(facet_grupos, facet_total_periferia) %>%
   arrange(tipo, ano)
 
-# 3.2. Tabela de Ciclos Globais (tabela_ciclos)
-tabela_ciclos <- df_res %>%
+# 3.2. Tabela de Ciclos Globais (tabela_ciclos) - Médias anuais sincronizadas
+medias_anuais_grupo <- df_res %>%
   filter(!is.na(var_pct), !is.na(Tipo)) %>%
-  group_by(ciclo_liquidez, tipo = Tipo) %>%
+  group_by(ciclo_liquidez, tipo = Tipo, year) %>%
   summarise(
-    n_obs = n(),
-    pct_queimando = round(mean(gasta_reserva) * 100, 1),
-    pct_severo = round(mean(queda_severa) * 100, 1),
-    crescimento_mediano = round(median(var_pct), 1),
+    media_ano = mean(var_pct, na.rm = TRUE),
+    pct_queima_ano = mean(gasta_reserva, na.rm = TRUE) * 100,
+    pct_severo_ano = mean(queda_severa, na.rm = TRUE) * 100,
+    n_ano = n(),
+    .groups = "drop"
+  )
+
+tabela_ciclos <- medias_anuais_grupo %>%
+  group_by(ciclo_liquidez, tipo) %>%
+  summarise(
+    n_obs = sum(n_ano),
+    pct_queimando = round(mean(pct_queima_ano), 1),
+    pct_severo = round(mean(pct_severo_ano), 1),
+    crescimento_medio = round(mean(media_ano), 1),
+    crescimento_mediano = round(mean(media_ano), 1), # mantido para retrocompatibilidade
     .groups = "drop"
   ) %>%
   arrange(ciclo_liquidez, tipo)
