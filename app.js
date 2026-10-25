@@ -938,7 +938,7 @@
             <th class="text-right">Obs (N)</th>
             <th class="text-right">% com Perda de Reservas</th>
             <th class="text-right">% com Queda Severa (&gt;10%)</th>
-            <th class="text-right">Crescimento Médio Anual (%)</th>
+            <th class="text-right">Variação Média Anual (%)</th>
           </tr>
         </thead>
         ${tbodyHtml}
@@ -1284,7 +1284,7 @@
     if (isLiquidez) {
       dados = calcularTabelaLiquidez();
       if (!dados.length) return;
-      cabecalho = [state.modo_tabela_liquidez === "ciclos" ? "Ciclo de Liquidez" : "Período", "Grupo", "Obs (N)", "% Perda de Reservas", "% Queda Severa (>10%)", "Crescimento Médio Anual (%)"];
+      cabecalho = [state.modo_tabela_liquidez === "ciclos" ? "Ciclo de Liquidez" : "Período", "Grupo", "Obs (N)", "% Perda de Reservas", "% Queda Severa (>10%)", "Variação Média Anual (%)"];
       prefix = "Liquidez_Internacional_";
     } else if (isEstoques) {
       dados = calcularTabelaEstoques();
