@@ -20,9 +20,11 @@ d <- readRDS(dados_rds)
 
 # Filtra apenas observações completas (mesmo critério do app Shiny)
 d_limpo <- d %>%
-  filter(!is.na(yield_A), !is.na(yield_L),
-         !is.na(kg_A_semF7), !is.na(kg_L_semF7),
-         !is.na(flag_IN1)) %>%
+  filter(
+    !is.na(yield_A), !is.na(yield_L),
+    !is.na(kg_A_semF7), !is.na(kg_L_semF7),
+    !is.na(flag_IN1)
+  ) %>%
   select(
     ano = TIME_PERIOD,
     iso = COUNTRY,
@@ -40,8 +42,10 @@ d_limpo <- d %>%
     tr_l_com = TR_L_comF7
   ) %>%
   mutate(
-    across(c(y_a, y_l, kg_a_sem, kg_l_sem, tr_a_sem, tr_l_sem,
-             kg_a_com, kg_l_com, tr_a_com, tr_l_com), ~ round(.x, 6))
+    across(c(
+      y_a, y_l, kg_a_sem, kg_l_sem, tr_a_sem, tr_l_sem,
+      kg_a_com, kg_l_com, tr_a_com, tr_l_com
+    ), ~ round(.x, 6))
   ) %>%
   arrange(ano, tipo, pais)
 
@@ -83,7 +87,7 @@ USA <- tibble(País = "United States", Tipo = "USA")
 
 AEs_g7 <- tibble(
   País = c("Canada", "France", "Germany", "Italy", "Japan", "United Kingdom"),
-  Tipo = "AEs (G7 ex-USA)"
+  Tipo = "AEs (G7 exc-USA)"
 )
 
 AEs_centrais <- tibble(
@@ -112,35 +116,41 @@ Centros_financeiros <- tibble(
 )
 
 Frontier_markets <- tibble(
-  País = c("Mongolia", "Papua New Guinea", "Viet Nam", "Armenia", "Azerbaijan", "Georgia", "Kazakhstan",
+  País = c(
+    "Mongolia", "Papua New Guinea", "Viet Nam", "Armenia", "Azerbaijan", "Georgia", "Kazakhstan",
     "Kyrgyz Republic", "Montenegro", "North Macedonia", "Serbia", "Tajikistan", "Ukraine", "Uzbekistan",
     "Argentina", "Bolivia", "Dominican Republic", "Ecuador", "El Salvador", "Guatemala", "Honduras", "Jamaica",
     "Paraguay", "Suriname", "Iraq", "Jordan", "Lebanon", "Morocco", "Pakistan", "Tunisia",
     "West Bank and Gaza", "Bangladesh", "Maldives", "Sri Lanka", "Angola", "Benin", "Botswana",
     "Burkina Faso", "Cameroon", "Côte d'Ivoire", "Ethiopia", "Gabon", "Ghana", "Guinea-Bissau",
     "Kenya", "Mali", "Mauritius", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda",
-    "Senegal", "Tanzania", "Togo", "Zambia"),
+    "Senegal", "Tanzania", "Togo", "Zambia"
+  ),
   Tipo = "Frontier Markets"
 )
 
 Emerging_markets <- tibble(
-  País = c("China", "Indonesia", "Malaysia", "Nauru", "Palau", "Philippines", "Thailand", "Bulgaria", "Hungary", "Poland",
+  País = c(
+    "China", "Indonesia", "Malaysia", "Nauru", "Palau", "Philippines", "Thailand", "Bulgaria", "Hungary", "Poland",
     "Romania", "Russian Federation", "Türkiye", "Antigua and Barbuda", "Bahamas, The", "Barbados", "Brazil", "Chile",
     "Colombia", "Costa Rica", "Guyana", "Mexico", "Panama", "Peru", "St. Kitts and Nevis", "Trinidad and Tobago",
     "Uruguay", "Bahrain", "Egypt, Arab Rep.", "Kuwait", "Oman", "Qatar", "Saudi Arabia", "United Arab Emirates",
-    "India", "Seychelles", "South Africa"),
+    "India", "Seychelles", "South Africa"
+  ),
   Tipo = "Emerging Markets"
 )
 
 Other_developing_economies <- tibble(
-  País = c("Cambodia", "Fiji", "Kiribati", "Lao PDR", "Marshall Islands", "Micronesia, Fed. Sts.", "Myanmar", "Samoa",
+  País = c(
+    "Cambodia", "Fiji", "Kiribati", "Lao PDR", "Marshall Islands", "Micronesia, Fed. Sts.", "Myanmar", "Samoa",
     "Solomon Islands", "Timor-Leste", "Tonga", "Tuvalu", "Vanuatu", "Albania", "Belarus", "Bosnia and Herzegovina",
     "Kosovo", "Moldova", "Belize", "Dominica", "Grenada", "Haiti", "Nicaragua", "St. Lucia",
     "St. Vincent and the Grenadines", "Afghanistan", "Algeria", "Djibouti", "Iran, Islamic Rep.", "Libya",
     "Syrian Arab Republic", "Yemen, Rep.", "Bhutan", "Nepal", "Burundi", "Cabo Verde", "Central African Republic", "Chad",
     "Comoros", "Congo, Dem. Rep.", "Congo, Rep.", "Equatorial Guinea", "Eritrea", "Eswatini", "Gambia, The", "Guinea",
     "Lesotho", "Liberia", "Madagascar", "Malawi", "Mauritania", "São Tomé and Principe", "Sierra Leone",
-    "South Sudan", "Sudan", "Uganda", "Zimbabwe"),
+    "South Sudan", "Sudan", "Uganda", "Zimbabwe"
+  ),
   Tipo = "Other Developing"
 )
 
@@ -257,7 +267,7 @@ liquidez_obs <- df_res %>%
 
 # 4. Metadados de países e grupos
 ORDEM_GRUPOS <- c(
-  "USA", "AEs (G7 ex-USA)", "AEs Centrais", "Periferia Europeia",
+  "USA", "AEs (G7 exc-USA)", "AEs Centrais", "Periferia Europeia",
   "Centros Financeiros", "Emerging Markets", "Frontier Markets",
   "Other Developing", "Outros"
 )
