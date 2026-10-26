@@ -964,15 +964,22 @@
     }
 
     const descricoesGrupos = {
-      "USA": "Estados Unidos — polo emissor da moeda de reserva e centro hegemônico do sistema monetário internacional.",
-      "AEs": "G7 ex-EUA (Canadá, França, Alemanha, Itália, Japão, Reino Unido) — economias avançadas centrais.",
-      "AEs Periféricos": "Economias avançadas fora do G7 (Europa não-G7, Ásia avançada, Oceania) com mercados de capitais maduros.",
-      "Emerging Markets": "Economias emergentes integradas aos fluxos globais de capital com vulnerabilidades periféricas típicas.",
-      "Frontier Markets": "Mercados de fronteira com maior restrição externa de liquidez e vulnerabilidade a choques cambiais.",
-      "Other Developing": "Demais economias em desenvolvimento e de menor renda relativa."
+      "USA": "Estados Unidos — polo emissor da moeda de reserva global e centro hegemônico do sistema monetário internacional (privilégio exorbitante).",
+      "AEs (G7 exc-USA)": "G7 sem Estados Unidos (Canadá, França, Alemanha, Itália, Japão, Reino Unido) — economias avançadas centrais de grande porte.",
+      "AEs Centrais": "Economias avançadas maduras fora do G7 (Holanda, Suíça, Austrália, Suécia, Noruega, Dinamarca, Coreia do Sul, Cingapura, etc.) com moedas fortes, alta renda e credoras líquidas.",
+      "Periferia Europeia": "Economias de transição ex-socialistas do Leste Europeu e periferia sul da Zona do Euro (Baldwin & Wyplosz, 2019) com dependência de capital externo.",
+      "Centros Financeiros": "Enclaves e centros de arbitragem fiscal / Phantom FDI (Luxemburgo, Irlanda, Chipre, Malta, Hong Kong, etc.) com balanços externos desproporcionais ao PIB.",
+      "Emerging Markets": "Economias emergentes integradas aos fluxos globais de capital com vulnerabilidades financeiras e cambiais típicas da periferia.",
+      "Frontier Markets": "Mercados de fronteira com menor profundidade de mercado, maior restrição externa e vulnerabilidade a choques de liquidez.",
+      "Other Developing": "Demais economias em desenvolvimento e de menor renda relativa do sistema internacional.",
+      "Outros": "Economias com regimes contábeis específicos ou descontinuidades severas de dados na série histórica."
     };
 
-    const ordemGrupos = ["USA", "AEs", "AEs Periféricos", "Emerging Markets", "Frontier Markets", "Other Developing"];
+    const ordemGrupos = state.dados && state.dados.grupos_ordem ? state.dados.grupos_ordem : [
+      "USA", "AEs (G7 exc-USA)", "AEs Centrais", "Periferia Europeia",
+      "Centros Financeiros", "Emerging Markets", "Frontier Markets",
+      "Other Developing", "Outros"
+    ];
 
     let html = "";
     ordemGrupos.forEach(grupo => {
