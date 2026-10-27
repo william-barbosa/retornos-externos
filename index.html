@@ -247,6 +247,53 @@
             <canvas id="chart-diferenciais-canvas"></canvas>
           </div>
         </div>
+
+        <!-- Gráfico Inferior: Composição da Carteira Externa (100% Stacked Bar) -->
+        <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border-color);">
+          <div class="chart-header">
+            <div>
+              <h3 id="chart-componentes-titulo" class="chart-title">Composição da Carteira Externa — Proporção dos Componentes (100%)</h3>
+              <p class="chart-subtitle" id="chart-componentes-subtitulo">Decomposição estrutural da Posição de Investimento Internacional (BPM6 - 100% empilhado por componente)</p>
+            </div>
+            <!-- Seleção de visualização: Ambos, Apenas Ativos ou Apenas Passivos -->
+            <div class="radio-group" style="font-size: 0.8rem;">
+              <label class="radio-label">
+                <input type="radio" name="lado_componente_estoque" value="ambos" checked> Ambos Lado a Lado
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="lado_componente_estoque" value="ativos"> Apenas Ativos (A_P)
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="lado_componente_estoque" value="passivos"> Apenas Passivos (L_P)
+              </label>
+            </div>
+          </div>
+
+          <!-- Pills de Entidades Selecionadas (Grupos ou Países) -->
+          <div id="pills-entidade-componentes" class="entity-pills-container" style="margin-bottom: 0.85rem; display: flex; flex-wrap: wrap; gap: 0.45rem;"></div>
+
+          <!-- Grid Responsiva com Gráficos de Ativos e Passivos -->
+          <div id="grid-componentes-iip" class="componentes-iip-grid">
+            <div id="card-comp-ativos" class="comp-card">
+              <div class="comp-header">
+                <h4 id="titulo-comp-ativos" class="comp-card-title">Ativos Externos (A_P)</h4>
+                <span class="comp-badge">Soma = 100%</span>
+              </div>
+              <div class="comp-canvas-container">
+                <canvas id="chart-comp-ativos-canvas"></canvas>
+              </div>
+            </div>
+            <div id="card-comp-passivos" class="comp-card">
+              <div class="comp-header">
+                <h4 id="titulo-comp-passivos" class="comp-card-title">Passivos Externos (L_P)</h4>
+                <span class="comp-badge">Soma = 100%</span>
+              </div>
+              <div class="comp-canvas-container">
+                <canvas id="chart-comp-passivos-canvas"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Container da Aba Liquidez Internacional (Facet Grid de Barras) -->
@@ -375,9 +422,9 @@
   </div>
 
   <!-- Fallback de dados para abertura offline direta via file:/// -->
-  <script src="data/dados.js?v=2"></script>
+  <script src="data/dados.js?v=3"></script>
   <!-- Lógica da Aplicação -->
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 
 </body>
 

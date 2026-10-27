@@ -30,6 +30,12 @@
     chartInstance: null,
     chartDiferenciaisInstance: null,
 
+    // Controles de Componentes IIP (100% Stacked Bar)
+    lado_componente_estoque: "ambos", // "ambos" | "ativos" | "passivos"
+    entidade_ativa_componente: null,
+    chartCompAtivosInstance: null,
+    chartCompPassivosInstance: null,
+
     // Controles da Aba Liquidez Internacional
     modo_tabela_liquidez: "ciclos", // "ciclos" | "periodos"
     chartLiquidezInstances: {},
@@ -708,6 +714,267 @@
           },
           x: {
             grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  // =============================================================================
+  // Renderização dos Gráficos de Componentes da IIP (100% Stacked Bar)
+  // =============================================================================
+  function renderizarGraficosComponentesEstoques() {
+    if (state.aba_ativa !== "estoques") return;
+    const canvasAtivos = document.getElementById("chart-comp-ativos-canvas");
+    const canvasPassivos = document.getElementById("chart-comp-passivos-canvas");
+    if (!canvasAtivos || !canvasPassivos || !window.Chart) return;
+
+    const compTotal = state.dados.iip_componentes || [];
+    const visao = state.visao_grafico_estoque;
+    let entidades = [];
+
+    if (visao === "grupo") {
+      entidades = state.grupos_grafico_estoque || [];
+    } else {
+      entidades = state.paises_grafico_estoque || [];
+    }
+    if (!entidades.length) return;
+
+    if (!state.entidade_ativa_componente || !entidades.includes(state.entidade_ativa_componente)) {
+      state.entidade_ativa_componente = entidades[0];
+    }
+    const entidadeAtiva = state.entidade_ativa_componente;
+
+    // Renderiza pills de entidades se houver mais de uma
+    const containerPills = document.getElementById("pills-entidade-componentes");
+    if (containerPills) {
+      containerPills.innerHTML = "";
+      if (entidades.length > 1) {
+        entidades.forEach(ent => {
+          const btn = document.createElement("button");
+          btn.className = "entity-pill-btn" + (ent === entidadeAtiva ? " active" : "");
+          let label = ent;
+          if (visao === "pais") {
+            const pObj = state.dados.paises.find(p => p.iso === ent);
+            label = pObj ? `${pObj.pais} (${ent})` : ent;
+          }
+          btn.innerText = label;
+          btn.addEventListener("click", () => {
+            state.entidade_ativa_componente = ent;
+            renderizarGraficosComponentesEstoques();
+          });
+          containerPills.appendChild(btn);
+        });
+        containerPills.style.display = "flex";
+      } else {
+        containerPills.style.display = "none";
+      }
+    }
+
+    // Título dinâmico
+    let nomeEntidade = entidadeAtiva;
+    if (visao === "pais") {
+      const pObj = state.dados.paises.find(p => p.iso === entidadeAtiva);
+      nomeEntidade = pObj ? `${pObj.pais} (${entidadeAtiva})` : entidadeAtiva;
+    } else {
+      nomeEntidade = `Média do Grupo: ${entidadeAtiva}`;
+    }
+    const tituloEl = document.getElementById("chart-componentes-titulo");
+    if (tituloEl) {
+      tituloEl.innerText = `Composição da Carteira Externa — ${nomeEntidade}`;
+    }
+
+    // Controle de exibição (Ambos, Ativos, Passivos)
+    const cardAtivos = document.getElementById("card-comp-ativos");
+    const cardPassivos = document.getElementById("card-comp-passivos");
+    const gridEl = document.getElementById("grid-componentes-iip");
+    const modoLado = state.lado_componente_estoque || "ambos";
+
+    if (cardAtivos && cardPassivos && gridEl) {
+      if (modoLado === "ambos") {
+        cardAtivos.style.display = "block";
+        cardPassivos.style.display = "block";
+        gridEl.style.gridTemplateColumns = window.innerWidth > 900 ? "1fr 1fr" : "1fr";
+      } else if (modoLado === "ativos") {
+        cardAtivos.style.display = "block";
+        cardPassivos.style.display = "none";
+        gridEl.style.gridTemplateColumns = "1fr";
+      } else {
+        cardAtivos.style.display = "none";
+        cardPassivos.style.display = "block";
+        gridEl.style.gridTemplateColumns = "1fr";
+      }
+    }
+
+    // Anos disponíveis
+    const anos = Array.from({ length: 25 }, (_, i) => 2000 + i);
+
+    // Extrai séries temporais dos componentes
+    const a_fdi_data = [], a_port_data = [], a_f7_data = [], a_oth_data = [], a_res_data = [];
+    const l_fdi_data = [], l_port_data = [], l_f7_data = [], l_oth_data = [];
+
+    // Mapeamento de grupos de países para agregação
+    const paisGruposMap = {};
+    for (const g of (state.dados.grupos_ordem || [])) {
+      let listaPaises = state.grupos_paises[g] || [];
+      if (typeof listaPaises === "string") listaPaises = [listaPaises];
+      for (const iso of listaPaises) {
+        if (!paisGruposMap[iso]) paisGruposMap[iso] = [];
+        paisGruposMap[iso].push(g);
+      }
+    }
+
+    anos.forEach(ano => {
+      if (visao === "pais") {
+        const obs = compTotal.find(o => o.iso === entidadeAtiva && o.ano === ano);
+        if (obs) {
+          a_fdi_data.push(obs.a_fdi !== undefined ? obs.a_fdi : null);
+          a_port_data.push(obs.a_port !== undefined ? obs.a_port : null);
+          a_f7_data.push(obs.a_f7 !== undefined ? obs.a_f7 : null);
+          a_oth_data.push(obs.a_oth !== undefined ? obs.a_oth : null);
+          a_res_data.push(obs.a_res !== undefined ? obs.a_res : null);
+
+          l_fdi_data.push(obs.l_fdi !== undefined ? obs.l_fdi : null);
+          l_port_data.push(obs.l_port !== undefined ? obs.l_port : null);
+          l_f7_data.push(obs.l_f7 !== undefined ? obs.l_f7 : null);
+          l_oth_data.push(obs.l_oth !== undefined ? obs.l_oth : null);
+        } else {
+          a_fdi_data.push(null); a_port_data.push(null); a_f7_data.push(null); a_oth_data.push(null); a_res_data.push(null);
+          l_fdi_data.push(null); l_port_data.push(null); l_f7_data.push(null); l_oth_data.push(null);
+        }
+      } else {
+        // Média do grupo
+        const obsAno = compTotal.filter(o => {
+          const grps = paisGruposMap[o.iso] || (o.tipo ? [o.tipo] : []);
+          return o.ano === ano && grps.includes(entidadeAtiva);
+        });
+
+        if (obsAno.length > 0) {
+          const media = (chave) => {
+            const vals = obsAno.map(o => o[chave]).filter(v => v !== null && v !== undefined && !isNaN(v));
+            return vals.length ? calcMedia(vals) : 0;
+          };
+          const raw_afdi = media("a_fdi"), raw_aport = media("a_port"), raw_af7 = media("a_f7"), raw_aoth = media("a_oth"), raw_ares = media("a_res");
+          const somaA = raw_afdi + raw_aport + raw_af7 + raw_aoth + raw_ares;
+          if (somaA > 0) {
+            a_fdi_data.push(Math.round((raw_afdi / somaA) * 1000) / 10);
+            a_port_data.push(Math.round((raw_aport / somaA) * 1000) / 10);
+            a_f7_data.push(Math.round((raw_af7 / somaA) * 1000) / 10);
+            a_oth_data.push(Math.round((raw_aoth / somaA) * 1000) / 10);
+            a_res_data.push(Math.round((raw_ares / somaA) * 1000) / 10);
+          } else {
+            a_fdi_data.push(null); a_port_data.push(null); a_f7_data.push(null); a_oth_data.push(null); a_res_data.push(null);
+          }
+
+          const raw_lfdi = media("l_fdi"), raw_lport = media("l_port"), raw_lf7 = media("l_f7"), raw_loth = media("l_oth");
+          const somaL = raw_lfdi + raw_lport + raw_lf7 + raw_loth;
+          if (somaL > 0) {
+            l_fdi_data.push(Math.round((raw_lfdi / somaL) * 1000) / 10);
+            l_port_data.push(Math.round((raw_lport / somaL) * 1000) / 10);
+            l_f7_data.push(Math.round((raw_lf7 / somaL) * 1000) / 10);
+            l_oth_data.push(Math.round((raw_loth / somaL) * 1000) / 10);
+          } else {
+            l_fdi_data.push(null); l_port_data.push(null); l_f7_data.push(null); l_oth_data.push(null);
+          }
+        } else {
+          a_fdi_data.push(null); a_port_data.push(null); a_f7_data.push(null); a_oth_data.push(null); a_res_data.push(null);
+          l_fdi_data.push(null); l_port_data.push(null); l_f7_data.push(null); l_oth_data.push(null);
+        }
+      }
+    });
+
+    // 1. Chart de Ativos (A_P)
+    if (state.chartCompAtivosInstance) {
+      state.chartCompAtivosInstance.destroy();
+    }
+    state.chartCompAtivosInstance = new Chart(canvasAtivos, {
+      type: "bar",
+      data: {
+        labels: anos.map(String),
+        datasets: [
+          { label: "Investimento Direto (FDI)", data: a_fdi_data, backgroundColor: "#2563eb", stack: "stackA" },
+          { label: "Investimento em Carteira (Portfolio)", data: a_port_data, backgroundColor: "#0d9488", stack: "stackA" },
+          { label: "Derivativos Financeiros (F7)", data: a_f7_data, backgroundColor: "#8b5cf6", stack: "stackA" },
+          { label: "Outros Investimentos", data: a_oth_data, backgroundColor: "#d97706", stack: "stackA" },
+          { label: "Ativos de Reserva (Câmbio)", data: a_res_data, backgroundColor: "#e11d48", stack: "stackA" }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { boxWidth: 12, font: { size: 11, family: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto" } }
+          },
+          tooltip: {
+            mode: "index",
+            intersect: false,
+            callbacks: {
+              label: function (ctx) {
+                const val = ctx.parsed.y;
+                if (val === null || val === undefined || isNaN(val)) return `${ctx.dataset.label}: —`;
+                return `${ctx.dataset.label}: ${val.toFixed(1)}%`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: {
+            stacked: true,
+            min: 0,
+            max: 100,
+            ticks: { callback: v => v + "%" },
+            grid: { color: "#f1f5f9" }
+          }
+        }
+      }
+    });
+
+    // 2. Chart de Passivos (L_P)
+    if (state.chartCompPassivosInstance) {
+      state.chartCompPassivosInstance.destroy();
+    }
+    state.chartCompPassivosInstance = new Chart(canvasPassivos, {
+      type: "bar",
+      data: {
+        labels: anos.map(String),
+        datasets: [
+          { label: "Investimento Direto (FDI)", data: l_fdi_data, backgroundColor: "#2563eb", stack: "stackL" },
+          { label: "Investimento em Carteira (Portfolio)", data: l_port_data, backgroundColor: "#0d9488", stack: "stackL" },
+          { label: "Derivativos Financeiros (F7)", data: l_f7_data, backgroundColor: "#8b5cf6", stack: "stackL" },
+          { label: "Outros Investimentos", data: l_oth_data, backgroundColor: "#d97706", stack: "stackL" }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { boxWidth: 12, font: { size: 11, family: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto" } }
+          },
+          tooltip: {
+            mode: "index",
+            intersect: false,
+            callbacks: {
+              label: function (ctx) {
+                const val = ctx.parsed.y;
+                if (val === null || val === undefined || isNaN(val)) return `${ctx.dataset.label}: —`;
+                return `${ctx.dataset.label}: ${val.toFixed(1)}%`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: {
+            stacked: true,
+            min: 0,
+            max: 100,
+            ticks: { callback: v => v + "%" },
+            grid: { color: "#f1f5f9" }
           }
         }
       }
@@ -1599,6 +1866,7 @@
           atualizarChipsGruposEstoque();
           renderizarGraficoEstoques();
           renderizarGraficoDiferenciaisEstoques();
+          renderizarGraficosComponentesEstoques();
         }
       });
     }
@@ -1615,6 +1883,7 @@
             atualizarChipsGruposEstoque();
             renderizarGraficoEstoques();
             renderizarGraficoDiferenciaisEstoques();
+            renderizarGraficosComponentesEstoques();
           }
         }
       });
@@ -1629,6 +1898,7 @@
           atualizarChipsPaisesEstoque();
           renderizarGraficoEstoques();
           renderizarGraficoDiferenciaisEstoques();
+          renderizarGraficosComponentesEstoques();
         }
       });
     }
@@ -1645,6 +1915,7 @@
             atualizarChipsPaisesEstoque();
             renderizarGraficoEstoques();
             renderizarGraficoDiferenciaisEstoques();
+            renderizarGraficosComponentesEstoques();
           }
         }
       });
@@ -1679,6 +1950,14 @@
 
     document.querySelectorAll("input[name='diferencial_estoque_top']").forEach(radio => {
       radio.addEventListener("change", (e) => sincronizarDiferencialEstoque(e.target.value));
+    });
+
+    // Seletor de Lado dos Componentes (Ambos, Ativos, Passivos)
+    document.querySelectorAll("input[name='lado_componente_estoque']").forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        state.lado_componente_estoque = e.target.value;
+        renderizarGraficosComponentesEstoques();
+      });
     });
 
     // Modo da tabela de liquidez
@@ -1722,6 +2001,7 @@
     if (isEstoques) {
       renderizarGraficoEstoques();
       renderizarGraficoDiferenciaisEstoques();
+      renderizarGraficosComponentesEstoques();
     } else if (isLiquidez) {
       renderizarFacetLiquidez();
     } else if (isClassificacao) {

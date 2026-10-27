@@ -94,7 +94,7 @@ AEs_centrais <- tibble(
   País = c(
     "Australia", "Austria", "Belgium", "Denmark", "Finland", "Iceland", "Israel",
     "Korea", "Netherlands, The", "New Zealand", "Norway", "Singapore",
-    "Sweden", "Switzerland", "Taiwan Province of China"
+    "Sweden", "Switzerland"
   ),
   Tipo = "AEs Centrais"
 )
@@ -265,6 +265,63 @@ liquidez_obs <- df_res %>%
     var_pct = round(var_pct, 2)
   )
 
+# 3.4. Base de Componentes da IIP (Ativos e Passivos em 100% empilhado e valores em US$ bi)
+comp_raw_path <- "scratch/iip_componentes_raw.rds"
+if (file.exists(comp_raw_path)) {
+  raw_comp <- readRDS(comp_raw_path)
+  
+  # Ativos
+  a_totais <- raw_comp %>% filter(entry == "A_P", INDICATOR == "TA_AFR") %>% select(iso, ano, total_a = valor)
+  a_comp <- raw_comp %>%
+    filter(entry == "A_P", INDICATOR %in% c("D", "P_MV", "F_F7_T", "O", "R")) %>%
+    pivot_wider(id_cols = c(iso, ano), names_from = INDICATOR, values_from = valor, values_fill = 0) %>%
+    left_join(a_totais, by = c("iso", "ano")) %>%
+    mutate(
+      soma_a = coalesce(D, 0) + coalesce(P_MV, 0) + coalesce(F_F7_T, 0) + coalesce(O, 0) + coalesce(R, 0),
+      total_a = if_else(is.na(total_a) | total_a <= 0, soma_a, total_a)
+    ) %>%
+    filter(total_a > 0) %>%
+    mutate(
+      a_fdi = round(pmax(0, D) / soma_a * 100, 2),
+      a_port = round(pmax(0, P_MV) / soma_a * 100, 2),
+      a_f7 = round(pmax(0, F_F7_T) / soma_a * 100, 2),
+      a_oth = round(pmax(0, O) / soma_a * 100, 2),
+      a_res = round(pmax(0, R) / soma_a * 100, 2),
+      total_a_bi = round(total_a / 1e9, 2)
+    ) %>%
+    select(iso, ano, total_a_bi, a_fdi, a_port, a_f7, a_oth, a_res)
+
+  # Passivos
+  l_totais <- raw_comp %>% filter(entry == "L_P", INDICATOR == "TL_AFR") %>% select(iso, ano, total_l = valor)
+  l_comp <- raw_comp %>%
+    filter(entry == "L_P", INDICATOR %in% c("D", "P_MV", "F_F7_T", "O")) %>%
+    pivot_wider(id_cols = c(iso, ano), names_from = INDICATOR, values_from = valor, values_fill = 0) %>%
+    left_join(l_totais, by = c("iso", "ano")) %>%
+    mutate(
+      soma_l = coalesce(D, 0) + coalesce(P_MV, 0) + coalesce(F_F7_T, 0) + coalesce(O, 0),
+      total_l = if_else(is.na(total_l) | total_l <= 0, soma_l, total_l)
+    ) %>%
+    filter(total_l > 0) %>%
+    mutate(
+      l_fdi = round(pmax(0, D) / soma_l * 100, 2),
+      l_port = round(pmax(0, P_MV) / soma_l * 100, 2),
+      l_f7 = round(pmax(0, F_F7_T) / soma_l * 100, 2),
+      l_oth = round(pmax(0, O) / soma_l * 100, 2),
+      total_l_bi = round(total_l / 1e9, 2)
+    ) %>%
+    select(iso, ano, total_l_bi, l_fdi, l_port, l_f7, l_oth)
+
+  # Mapeia tipo/grupo
+  mapa_tipo <- d_limpo %>% distinct(iso, tipo)
+  
+  iip_componentes <- full_join(a_comp, l_comp, by = c("iso", "ano")) %>%
+    left_join(mapa_tipo, by = "iso") %>%
+    mutate(tipo = coalesce(tipo, "Outros")) %>%
+    arrange(ano, tipo, iso)
+} else {
+  iip_componentes <- tibble()
+}
+
 # 4. Metadados de países e grupos
 ORDEM_GRUPOS <- c(
   "USA", "AEs (G7 exc-USA)", "AEs Centrais", "Periferia Europeia",
@@ -291,6 +348,7 @@ export_obj <- list(
   anos = sort(unique(d_limpo$ano)),
   obs = d_limpo,
   estoques = estoques_raw,
+  iip_componentes = iip_componentes,
   liquidez_facet = liquidez_facet,
   tabela_ciclos = tabela_ciclos,
   liquidez_obs = liquidez_obs,
