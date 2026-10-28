@@ -66,14 +66,6 @@
   const PRESETS = {
     script: ["2000-2004", "2005-2009", "2010-2014", "2015-2019", "2020-2025"],
     proposta: ["2000-2005", "2006-2009", "2010-2014", "2015-2019", "2020-2025"],
-    ciclos: [
-      "2000-2002: Crises",
-      "2003-2007: Superciclo",
-      "2008-2009: Crise Subprime",
-      "2010-2013: Quebra Estrutural",
-      "2014-2019: Fim do boom e dólar forte",
-      "2020-2025: Pandemia e aperto do Fed"
-    ],
     trienios: [
       "2000-2002", "2003-2005", "2006-2008", "2009-2011", "2012-2014",
       "2015-2017", "2018-2020", "2021-2023", "2024-2025"
@@ -896,7 +888,7 @@
           { label: "Investimento em Carteira (Portfolio)", data: a_port_data, backgroundColor: "#0d9488", stack: "stackA" },
           { label: "Derivativos Financeiros (F7)", data: a_f7_data, backgroundColor: "#8b5cf6", stack: "stackA" },
           { label: "Outros Investimentos", data: a_oth_data, backgroundColor: "#d97706", stack: "stackA" },
-          { label: "Ativos de Reserva (Câmbio)", data: a_res_data, backgroundColor: "#e11d48", stack: "stackA" }
+          { label: "Reservas", data: a_res_data, backgroundColor: "#e11d48", stack: "stackA" }
         ]
       },
       options: {
