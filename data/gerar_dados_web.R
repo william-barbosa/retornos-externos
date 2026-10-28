@@ -159,7 +159,14 @@ todos_paises_grupos <- bind_rows(
   USA, AEs_g7, AEs_centrais, Periferia_europeia, Centros_financeiros,
   Emerging_markets, Frontier_markets, Other_developing_economies
 ) %>%
-  mutate(iso = suppressWarnings(countrycode(País, origin = "country.name", destination = "iso3c", custom_match = c("Kosovo" = "XKX", "Taiwan Province of China" = "TWN")))) %>%
+  mutate(
+    iso = suppressWarnings(countrycode(País, origin = "country.name", destination = "iso3c", custom_match = c("Kosovo" = "XKX"))),
+    # Sincroniza os países que foram reclassificados em Outros no tratamento de dados
+    Tipo = if_else(iso %in% c(
+      "MUS", "AGO", "CIV", "ZMB", "GIN", "LBR",
+      "FSM", "MDG", "MWI", "TLS"
+    ), "Outros", Tipo)
+  ) %>%
   distinct()
 
 # Base de reservas e variação
